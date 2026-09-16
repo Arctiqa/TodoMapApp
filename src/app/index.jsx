@@ -16,24 +16,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-/*
-  Дневник — Квестовая карта (Expo / React Native версия)
-  ------------------------------------------------------
-  Только React + react-native, без веб-библиотек (никакого lucide-react,
-  никакого HTML/CSS). Иконки — обычные emoji-символы в <Text>, они
-  работают одинаково на iOS/Android/Web(Expo) без установки чего-либо
-  ещё через `expo install`.
-
-  Упрощения относительно веб-версии (сознательно, чтобы не тянуть
-  нативные зависимости):
-  - фон "местности/дома/поля" — заливка цветом вместо CSS-градиента
-  - тени — через shadow /elevation вместо boxShadow
-  - дата и время дела вводятся текстом (ГГГГ-ММ-ДД и ЧЧ:ММ) вместо
-    нативного календаря — при желании потом можно добавить
-    @react-native-community/datetimepicker через `expo install`
-  - шрифт — системный (никакой Comic Sans на телефоне обычно нет)
-*/
-
 const INK = "#3B2F2F";
 const CARD = "#FFF7E8";
 const PAPER = "#FFFDF7";
