@@ -16,6 +16,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+<<<<<<< HEAD
 /*
   ==== Предустановленные фоны (Дом и Карта) ====
   У тебя уже готовы картинки — положи их по путям ниже (относительно
@@ -68,6 +69,8 @@ function resolveImageSource(img) {
   - шрифт — системный (никакой Comic Sans на телефоне обычно нет)
 */
 
+=======
+>>>>>>> 07a4874ea29101aed5aa5bf24132f994fbdaa0a7
 const INK = "#3B2F2F";
 const CARD = "#FFF7E8";
 const PAPER = "#FFFDF7";
