@@ -15,9 +15,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-<<<<<<< HEAD
-
-*/
 let DOM_DEFAULT_BG = null;
 let MAP_DEFAULT_BG = null;
 try {
@@ -36,8 +33,6 @@ function resolveImageSource(img) {
   return typeof img === "number" ? img : { uri: img };
 }
 
-=======
->>>>>>> 07a4874ea29101aed5aa5bf24132f994fbdaa0a7
 const INK = "#3B2F2F";
 const CARD = "#FFF7E8";
 const PAPER = "#FFFDF7";
@@ -1183,7 +1178,7 @@ function NewPinForm({ title, onClose, onCreate, confirmLabel, showColor = true, 
 
           {showColor && showPlaceHints && (
             <Text style={{ fontSize: 11.5, color: "#8a7a6a", fontStyle: "italic", marginBottom: 8, lineHeight: 16 }}>
-              Введите места, которые вы знаете — например: дом Светы, огород соседа, дома родственников и знакомых, или места, в которых вы ещё даже не были, но которые потенциально представляют интерес.
+              Введите места, которые представляют для вас интерес — например: универмаг, огород соседа, библиотека, дома родственников и знакомых, или места, в которых вы ещё даже не были, но в них могут быть какие-то ваши цели
             </Text>
           )}
 
@@ -1241,7 +1236,7 @@ function NewPinForm({ title, onClose, onCreate, confirmLabel, showColor = true, 
 
           {!showColor && (
             <Text style={{ textAlign: "center", fontSize: 11.5, color: "#8a7a6a", fontStyle: "italic", marginBottom: 12, lineHeight: 16 }}>
-              💡 Поле — это тоже локация (например, Байкал). Заводите его, если на карте не хватает места, эта локация далека от остальных, или в ней много своих категорий — как в «Доме».
+              💡 Поле — это большая локация (например, другой город, или страна). Создавайте его, если в локации требуется много меток или категорий
             </Text>
           )}
 
@@ -1615,10 +1610,18 @@ function OthersList({ pool, onClose, onTake, onRefresh }) {
   return (
     <Overlay zIndex={57}>
       <OverlayHeader onBack={onClose} title="🌐 ДРУГИЕ" onClose={onClose} />
-      <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
-        <Text style={{ fontSize: 11.5, color: "#8a7a6a", marginBottom: 4 }}>
-          Задачи, которыми поделились другие (анонимно). Число — сколько людей поставили себе такое же дело.
-        </Text>
+		<ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
+		  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+			<Text style={{ fontSize: 11.5, color: "#8a7a6a", flex: 1, paddingRight: 8 }}>
+			  Задачи, которыми поделились другие (анонимно).
+			</Text>
+			<Pressable
+			  onPress={onRefresh}
+			  style={{ borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: "#fff" }}
+			>
+			  <Text style={{ fontSize: 12 }}>🔄</Text>
+			</Pressable>
+		  </View>
         {pool.length === 0 && <Text style={{ color: "#a0907e", fontSize: 13, fontStyle: "italic" }}>Пока никто ничего не расшарил.</Text>}
         {pool.map((p) => (
           <View key={p.title} style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: CARD, borderWidth: 1.5, borderColor: INK, borderRadius: 10, padding: 10 }}>
