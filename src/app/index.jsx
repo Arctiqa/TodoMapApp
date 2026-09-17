@@ -9,24 +9,14 @@ import {
   StatusBar,
   Image,
 } from "react-native";
-// Требует: expo install expo-image-picker (официальный Expo-модуль,
-// работает прямо в Expo Go, никаких веб-библиотек).
+// Требует: expo install expo-image-picker 
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 <<<<<<< HEAD
-/*
-  ==== Предустановленные фоны (Дом и Карта) ====
-  У тебя уже готовы картинки — положи их по путям ниже (относительно
-  этого файла) и раскомментируй require(). Если этот файл лежит в
-  app/index.jsx (Expo Router), а папка assets/ — в корне проекта,
-  путь будет "../assets/...", как ниже. Если файл лежит в другом
-  месте — поправь количество "../".
 
-  Пока файлов нет — оставь как есть (null), приложение будет
-  использовать обычную цветную заливку, как сейчас.
 */
 let DOM_DEFAULT_BG = null;
 let MAP_DEFAULT_BG = null;
@@ -38,36 +28,13 @@ try {
 try {
   MAP_DEFAULT_BG = require("../assets/backgrounds/map-bg.jpg");
 } catch (e) {
-  // файла ещё нет — не страшно, останется обычный цвет
+  // файла ещё нет
 }
-
-// require() в Metro должен резолвиться на этапе сборки, поэтому если
-// картинки пока нет — Metro всё равно попытается собрать require и
-// упадёт с понятной ошибкой "Unable to resolve module". В этом случае
-// просто закомментируй две строки require() выше — тогда останется null.
 
 function resolveImageSource(img) {
   if (!img) return null;
   return typeof img === "number" ? img : { uri: img };
 }
-
-/*
-  Дневник — Квестовая карта (Expo / React Native версия)
-  ------------------------------------------------------
-  Только React + react-native, без веб-библиотек (никакого lucide-react,
-  никакого HTML/CSS). Иконки — обычные emoji-символы в <Text>, они
-  работают одинаково на iOS/Android/Web(Expo) без установки чего-либо
-  ещё через `expo install`.
-
-  Упрощения относительно веб-версии (сознательно, чтобы не тянуть
-  нативные зависимости):
-  - фон "местности/дома/поля" — заливка цветом вместо CSS-градиента
-  - тени — через shadow /elevation вместо boxShadow
-  - дата и время дела вводятся текстом (ГГГГ-ММ-ДД и ЧЧ:ММ) вместо
-    нативного календаря — при желании потом можно добавить
-    @react-native-community/datetimepicker через `expo install`
-  - шрифт — системный (никакой Comic Sans на телефоне обычно нет)
-*/
 
 =======
 >>>>>>> 07a4874ea29101aed5aa5bf24132f994fbdaa0a7
@@ -311,9 +278,7 @@ const TASK_HINTS = {
 };
 
 // ==== Мистер Пропер: пул предложений для метки «Гид» ====
-// Каждое предложение — это реплика + название дела, которое появится,
-// если пользователь согласится. starterNotes — необязательные
-// стартовые пометки (шаги), которые сразу лягут в дело.
+
 const PROPER_OFFERS = [
   { id: "bathroom", text: "Ты в неё смотришь, а она смотрит на тебя. Помой уже.", taskTitle: "Помыть ванну" },
   { id: "closet", text: "У тебя в шкафу вещи из прошлой жизни. Разбери.", taskTitle: "Разобрать шкаф" },
