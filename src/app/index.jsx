@@ -17,6 +17,40 @@ import * as FileSystem from "expo-file-system";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 /*
+  ==== Предустановленные фоны (Дом и Карта) ====
+  У тебя уже готовы картинки — положи их по путям ниже (относительно
+  этого файла) и раскомментируй require(). Если этот файл лежит в
+  app/index.jsx (Expo Router), а папка assets/ — в корне проекта,
+  путь будет "../assets/...", как ниже. Если файл лежит в другом
+  месте — поправь количество "../".
+
+  Пока файлов нет — оставь как есть (null), приложение будет
+  использовать обычную цветную заливку, как сейчас.
+*/
+let DOM_DEFAULT_BG = null;
+let MAP_DEFAULT_BG = null;
+try {
+  DOM_DEFAULT_BG = require("../assets/backgrounds/dom-bg.jpg");
+} catch (e) {
+  // файла ещё нет — не страшно, останется обычный цвет
+}
+try {
+  MAP_DEFAULT_BG = require("../assets/backgrounds/map-bg.jpg");
+} catch (e) {
+  // файла ещё нет — не страшно, останется обычный цвет
+}
+
+// require() в Metro должен резолвиться на этапе сборки, поэтому если
+// картинки пока нет — Metro всё равно попытается собрать require и
+// упадёт с понятной ошибкой "Unable to resolve module". В этом случае
+// просто закомментируй две строки require() выше — тогда останется null.
+
+function resolveImageSource(img) {
+  if (!img) return null;
+  return typeof img === "number" ? img : { uri: img };
+}
+
+/*
   Дневник — Квестовая карта (Expo / React Native версия)
   ------------------------------------------------------
   Только React + react-native, без веб-библиотек (никакого lucide-react,
@@ -39,6 +73,7 @@ const CARD = "#FFF7E8";
 const PAPER = "#FFFDF7";
 const GREEN = "#2ECC71";
 const BLUE = "#2F6FDE";
+const BAR_BG = "#DCEFF6";
 const PALETTE = ["#E4572E", "#2A9D8F", "#E9C46A", "#8E44AD", "#3D5A80", "#E76F51", "#457B9D", "#B08968"];
 
 const THEME_BG = {
@@ -272,19 +307,85 @@ const TASK_HINTS = {
   ],
 };
 
+// ==== Мистер Пропер: пул предложений для метки «Гид» ====
+// Каждое предложение — это реплика + название дела, которое появится,
+// если пользователь согласится. starterNotes — необязательные
+// стартовые пометки (шаги), которые сразу лягут в дело.
+const PROPER_OFFERS = [
+  { id: "bathroom", text: "Ты в неё смотришь, а она смотрит на тебя. Помой уже.", taskTitle: "Помыть ванну" },
+  { id: "closet", text: "У тебя в шкафу вещи из прошлой жизни. Разбери.", taskTitle: "Разобрать шкаф" },
+  { id: "windows", text: "Через твои окна ничего не видно. Помой.", taskTitle: "Помыть окна" },
+  { id: "museum", text: "В твоём городе есть музей. Ты там был?", taskTitle: "Сходить в музей" },
+  { id: "monument", text: "Ты ходишь мимо этого памятника уже который год. Остановись хоть раз.", taskTitle: "Посмотреть на памятник в центре" },
+  { id: "library", text: "В библиотеке книги бесплатно. Да, до сих пор.", taskTitle: "Взять книгу в библиотеке" },
+  { id: "nearby-town", text: "Ты в соседнем городе не был. А он в часе езды.", taskTitle: "Съездить в соседний город на день" },
+  { id: "purchase", text: "У тебя в корзине что-то висит месяца три. Купи, не умрёшь.", taskTitle: "Купить то, что давно хотел" },
+  { id: "parents", text: "Ты давно звонил родителям?", taskTitle: "Позвонить родителям" },
+  { id: "old-friend", text: "Помнишь его? Напиши. Он не кусается.", taskTitle: "Написать старому другу" },
+  { id: "trial-class", text: "Пробное занятие — это час. Хуже не будет.", taskTitle: "Записаться на пробное занятие" },
+  {
+    id: "language",
+    text: "Ты говорил, что хочешь выучить язык. Два года назад.",
+    taskTitle: "Выучить иностранный язык",
+    starterNotes: ["Выбрать язык", "Скачать приложение", "Заниматься 15 минут в день"],
+  },
+  {
+    id: "big-trip",
+    text: "Назови место, куда поедешь. Сингапур? Арктика? Не мне, себе назови.",
+    taskTitle: "Съездить в место, о котором давно думаешь",
+    starterNotes: ["Выбрать место", "Посчитать бюджет", "Отложить первую сумму"],
+  },
+  {
+    id: "book",
+    text: "Ты говорил, что напишешь книгу. Лет пять назад. Я помню.",
+    taskTitle: "Написать книгу / мемуары / сценарий",
+    starterNotes: ["Определить тему", "Написать одну страницу — сегодня"],
+  },
+];
+
+// ==== Титулы за задания от Гида (пока только Мистер Пропер) ====
+// Ключ — сколько заданий от гида выполнено; открывается по достижении.
+const GUIDE_TITLES = {
+  proper: {
+    1: { name: "Уборщик", emoji: "🧹", desc: "Первый шаг сделан." },
+    3: { name: "Чистюля", emoji: "🧼", desc: "Ты втянулся." },
+    5: { name: "Хозяин", emoji: "🏠", desc: "Дом под контролем." },
+    7: { name: "Домовой", emoji: "🧙", desc: "Дом чувствует тебя." },
+    10: { name: "Мастер чистоты", emoji: "👑", desc: "Идеал. Достигнут." },
+  },
+};
+const GUIDE_TITLE_TIERS = [1, 3, 5, 7, 10];
+
+// ==== Публичный пул задач («Другие») ====
+// Сюда позже впишешь адрес своего сервера (и ключ доступа, если нужен).
+// Ожидаемый протокол, когда сервер появится:
+//   POST {SHARE_API.baseUrl}/share   body: { title, due }   — анонимно добавить в пул
+//   GET  {SHARE_API.baseUrl}/pool                            — получить пул: [{ title, due, count }]
+// Пока baseUrl пустой — используется локальный демо-пул (AsyncStorage),
+// чтобы экран «Другие» уже можно было пощупать без сервера.
+const SHARE_API = {
+  baseUrl: "", // ← впиши сюда адрес сервера, когда он будет готов
+};
+const SHARE_POOL_KEY = "questmap_shared_pool_v1";
+
 const initialScreens = {
   main: {
     id: "main",
     name: "КАРТА",
     theme: "terrain",
     parentId: null,
-    markers: [{ id: "dom", special: true, name: "Дом", emoji: "🏠", color: "#E4572E", x: 50, y: 75, linkTo: "home" }],
+    image: MAP_DEFAULT_BG,
+    markers: [
+      { id: "dom", special: true, name: "Дом", emoji: "🏠", color: "#E4572E", x: 50, y: 75, linkTo: "home" },
+      { id: "guide", isGuide: true, guideKey: "proper", name: "Гид", emoji: "🧹", color: "#BDEFC9", x: 82, y: 18 },
+    ],
   },
   home: {
     id: "home",
     name: "🏠 ДОМ — ДЕЛА",
     theme: "home",
     parentId: "main",
+    image: DOM_DEFAULT_BG,
     markers: [
       {
         id: "shopping",
@@ -389,9 +490,8 @@ function OverlayHeader({ onBack, backLabel = "Назад", title, onClose }) {
         justifyContent: "space-between",
         paddingHorizontal: 16,
         paddingVertical: 14,
-        borderBottomWidth: 2,
+        borderBottomWidth: 1.5,
         borderColor: INK,
-        borderStyle: "dashed",
       }}
     >
       <Pressable onPress={onBack} style={{ flexDirection: "row", alignItems: "center", gap: 6, minWidth: 60 }}>
@@ -460,9 +560,8 @@ function Pin({ marker, editMode, editAction, containerSize, onOpen, onDragMove, 
             height: size,
             borderRadius: size / 2,
             backgroundColor: marker.color,
-            borderWidth: 3,
+            borderWidth: 2.5,
             borderColor: INK,
-            borderStyle: editMode ? "dashed" : "solid",
             alignItems: "center",
             justifyContent: "center",
             overflow: "hidden",
@@ -580,7 +679,7 @@ function HintsModal({ title, groups, items, onClose, onPick }) {
             maxHeight: "82%",
           }}
         >
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderBottomWidth: 2, borderColor: INK, borderStyle: "dashed" }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderBottomWidth: 1.5, borderColor: INK }}>
             <Text style={{ fontSize: 14, fontWeight: "bold", color: INK, flex: 1, paddingRight: 8 }}>{title}</Text>
             <Pressable onPress={onClose}>
               <Text style={{ fontSize: 18 }}>✕</Text>
@@ -629,6 +728,22 @@ function ConfirmDialog({ message, onConfirm, onCancel }) {
             <PrimaryButton label="Отмена" color="#fff" textColor={INK} onPress={onCancel} style={{ flex: 1 }} />
             <PrimaryButton label="Удалить" color="#E4572E" onPress={onConfirm} style={{ flex: 1 }} />
           </View>
+        </Pressable>
+      </Pressable>
+    </Overlay>
+  );
+}
+
+function InfoDialog({ message, onClose }) {
+  return (
+    <Overlay zIndex={65} background="rgba(59,47,47,0.5)">
+      <Pressable style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 12 }} onPress={onClose}>
+        <Pressable
+          onPress={() => {}}
+          style={{ backgroundColor: PAPER, borderWidth: 3, borderColor: INK, borderRadius: 16, width: "100%", maxWidth: 260, padding: 18 }}
+        >
+          <Text style={{ fontSize: 14, color: INK, marginBottom: 14, textAlign: "center" }}>{message}</Text>
+          <PrimaryButton label="Ок" color={GREEN} onPress={onClose} />
         </Pressable>
       </Pressable>
     </Overlay>
@@ -811,7 +926,7 @@ function DueEditor({ dueMode, setDueMode, dueDate, setDueDate, dueTime, setDueTi
 
 /* -------- Notes overlay for a single task -------- */
 
-function TaskDetailOverlay({ task, markerColor, onBack, onAddNote, onRemoveNote }) {
+function TaskDetailOverlay({ task, markerColor, onBack, onAddNote, onRemoveNote, onToggleNote }) {
   const [note, setNote] = useState("");
   const expired = isTaskExpired(task);
   const submit = () => {
@@ -829,8 +944,10 @@ function TaskDetailOverlay({ task, markerColor, onBack, onAddNote, onRemoveNote 
           {(!task.notes || task.notes.length === 0) && <Text style={{ color: "#a0907e", fontSize: 12.5, fontStyle: "italic" }}>Пометок пока нет.</Text>}
           {task.notes &&
             task.notes.map((n, i) => (
-              <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CARD, borderWidth: 2, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
-                <Text style={{ flex: 1, fontSize: 13, color: INK }}>{n}</Text>
+              <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CARD, borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
+                <Pressable style={{ flex: 1 }} onPress={() => onToggleNote(i)}>
+                  <Text style={{ fontSize: 13, color: n.done ? "#9a8a76" : INK, textDecorationLine: n.done ? "line-through" : "none" }}>{n.text}</Text>
+                </Pressable>
                 <Pressable onPress={() => onRemoveNote(i)}>
                   <Text style={{ opacity: 0.5 }}>✕</Text>
                 </Pressable>
@@ -851,7 +968,7 @@ function TaskDetailOverlay({ task, markerColor, onBack, onAddNote, onRemoveNote 
           </Pressable>
         </View>
 
-        <View style={{ borderWidth: 3, borderColor: INK, borderStyle: "dashed", borderRadius: 12, padding: 14, alignItems: "center" }}>
+        <View style={{ borderWidth: 1.5, borderColor: INK, borderRadius: 12, padding: 14, alignItems: "center" }}>
           <Text style={{ fontSize: 16, fontWeight: "bold", color: expired ? BLUE : INK }}>{formatRemaining(task.due)}</Text>
         </View>
       </ScrollView>
@@ -861,7 +978,7 @@ function TaskDetailOverlay({ task, markerColor, onBack, onAddNote, onRemoveNote 
 
 /* -------- Task list ("Дела") for one marker -------- */
 
-function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onRemoveNote }) {
+function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onRemoveNote, onToggleNote, onShare }) {
   const [title, setTitle] = useState("");
   const [dueMode, setDueMode] = useState("none");
   const [dueDate, setDueDate] = useState("");
@@ -870,6 +987,7 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
   const [noteTaskId, setNoteTaskId] = useState(null);
   const [showHints, setShowHints] = useState(false);
   const [pendingDeleteTaskId, setPendingDeleteTaskId] = useState(null);
+  const [shareToPool, setShareToPool] = useState(false);
   if (!marker) return null;
 
   const noteTask = marker.tasks && marker.tasks.find((t) => t.id === noteTaskId);
@@ -884,16 +1002,18 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
       due = { target: Date.now() + dueDays * 86400000, kind: "duration" };
     }
     onAdd(marker.id, title.trim(), due);
+    if (shareToPool && onShare) onShare(title.trim(), due);
     setTitle("");
     setDueMode("none");
     setDueDate("");
     setDueTime("");
     setDueDays(1);
+    setShareToPool(false);
   };
 
   return (
     <Overlay zIndex={50}>
-      <OverlayHeader onBack={onClose} title={`${marker.emoji} ${marker.name.toUpperCase()} [${marker.id}]`} onClose={onClose} />
+      <OverlayHeader onBack={onClose} title={`${marker.emoji} ${marker.name.toUpperCase()}`} onClose={onClose} />
       {marker.image && (
         <View style={{ alignItems: "center", paddingTop: 10 }}>
           <Image source={{ uri: marker.image }} style={{ width: 90, height: 90, borderRadius: 12, borderWidth: 2, borderColor: INK }} />
@@ -954,8 +1074,8 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
                   {t.notes && t.notes.length > 0 && (
                     <View style={{ marginTop: 3, gap: 1 }}>
                       {t.notes.map((n, i) => (
-                        <Text key={i} style={{ fontSize: 11.5, color: "#6b5b4d" }}>
-                          [{n}]
+                        <Text key={i} style={{ fontSize: 11.5, color: n.done ? "#b0a496" : "#6b5b4d", textDecorationLine: n.done ? "line-through" : "none" }}>
+                          [{n.text}]
                         </Text>
                       ))}
                     </View>
@@ -973,7 +1093,7 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
           })}
       </ScrollView>
 
-      <View style={{ borderTopWidth: 2, borderColor: INK, borderStyle: "dashed", padding: 12 }}>
+      <View style={{ borderTopWidth: 1.5, borderColor: INK, padding: 12 }}>
         <TextInput
           value={title}
           onChangeText={setTitle}
@@ -984,12 +1104,30 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
 
         <Pressable
           onPress={() => setShowHints(true)}
-          style={{ alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: INK, borderStyle: "dashed", borderRadius: 8, paddingVertical: 6, marginBottom: 8, backgroundColor: CARD }}
+          style={{ alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingVertical: 6, marginBottom: 8, backgroundColor: CARD }}
         >
           <Text style={{ fontSize: 12, color: INK }}>💡 Подсказки — что можно сделать?</Text>
         </Pressable>
 
         <DueEditor dueMode={dueMode} setDueMode={setDueMode} dueDate={dueDate} setDueDate={setDueDate} dueTime={dueTime} setDueTime={setDueTime} dueDays={dueDays} setDueDays={setDueDays} />
+
+        <Pressable onPress={() => setShareToPool((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 5,
+              borderWidth: 1.5,
+              borderColor: INK,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: shareToPool ? INK : "#fff",
+            }}
+          >
+            {shareToPool && <Text style={{ color: "#fff", fontSize: 11 }}>✓</Text>}
+          </View>
+          <Text style={{ fontSize: 11.5, color: INK }}>🌐 Поделиться задачей (анонимно, в «Другие»)</Text>
+        </Pressable>
 
         <PrimaryButton label="Добавить дело" color="#BDEFC9" textColor={INK} onPress={submit} />
       </View>
@@ -1013,6 +1151,7 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
           onBack={() => setNoteTaskId(null)}
           onAddNote={(text) => onAddNote(marker.id, noteTaskId, text)}
           onRemoveNote={(idx) => onRemoveNote(marker.id, noteTaskId, idx)}
+          onToggleNote={(idx) => onToggleNote(marker.id, noteTaskId, idx)}
         />
       )}
 
@@ -1087,9 +1226,8 @@ function NewPinForm({ title, onClose, onCreate, confirmLabel, showColor = true, 
                 width: 52,
                 height: 52,
                 borderRadius: 26,
-                borderWidth: 2,
+                borderWidth: 1.5,
                 borderColor: INK,
-                borderStyle: image ? "solid" : "dashed",
                 alignItems: "center",
                 justifyContent: "center",
                 overflow: "hidden",
@@ -1127,7 +1265,7 @@ function NewPinForm({ title, onClose, onCreate, confirmLabel, showColor = true, 
           {showColor && showPlaceHints && (
             <Pressable
               onPress={() => setShowHints(true)}
-              style={{ alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: INK, borderStyle: "dashed", borderRadius: 8, paddingVertical: 6, marginBottom: 12, backgroundColor: CARD }}
+              style={{ alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingVertical: 6, marginBottom: 12, backgroundColor: CARD }}
             >
               <Text style={{ fontSize: 12, color: INK }}>💡 Подсказки — какие места бывают?</Text>
             </Pressable>
@@ -1238,7 +1376,7 @@ function JournalList({ entries, onClose, onOpenDetail }) {
   );
 }
 
-function JournalDetail({ entry, onBack, onClose, onAddNote, onRemoveNote }) {
+function JournalDetail({ entry, onBack, onClose, onAddNote, onRemoveNote, onToggleNote }) {
   const [note, setNote] = useState("");
   if (!entry) return null;
   const submit = () => {
@@ -1260,8 +1398,10 @@ function JournalDetail({ entry, onBack, onClose, onAddNote, onRemoveNote }) {
         <View style={{ gap: 6, marginBottom: 16 }}>
           {entry.task.notes.length === 0 && <Text style={{ color: "#a0907e", fontSize: 12.5, fontStyle: "italic" }}>Пометок пока нет.</Text>}
           {entry.task.notes.map((n, i) => (
-            <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CARD, borderWidth: 2, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
-              <Text style={{ flex: 1, fontSize: 13, color: INK }}>{n}</Text>
+            <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: CARD, borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
+              <Pressable style={{ flex: 1 }} onPress={() => onToggleNote(i)}>
+                <Text style={{ fontSize: 13, color: n.done ? "#9a8a76" : INK, textDecorationLine: n.done ? "line-through" : "none" }}>{n.text}</Text>
+              </Pressable>
               <Pressable onPress={() => onRemoveNote(i)}>
                 <Text style={{ opacity: 0.5 }}>✕</Text>
               </Pressable>
@@ -1282,7 +1422,7 @@ function JournalDetail({ entry, onBack, onClose, onAddNote, onRemoveNote }) {
           </Pressable>
         </View>
 
-        <View style={{ borderWidth: 3, borderColor: INK, borderStyle: "dashed", borderRadius: 12, padding: 14, alignItems: "center" }}>
+        <View style={{ borderWidth: 1.5, borderColor: INK, borderRadius: 12, padding: 14, alignItems: "center" }}>
           <Text style={{ fontSize: 16, fontWeight: "bold", color: isTaskExpired(entry.task) ? BLUE : INK }}>{formatRemaining(entry.task.due)}</Text>
         </View>
       </ScrollView>
@@ -1341,6 +1481,196 @@ function HistoryList({ entries, onClose, onDeleteEntry }) {
 
 /* -------- Main app -------- */
 
+function MarkerPickerModal({ screens, onPick, onClose }) {
+  const rows = [];
+  Object.values(screens).forEach((scr) => {
+    (scr.markers || []).forEach((mk) => {
+      if (mk.isGuide || mk.linkTo) return; // порталы и гид не хранят дел
+      rows.push({ screenId: scr.id, screenName: scr.name, markerId: mk.id, markerName: mk.name, emoji: mk.emoji, color: mk.color });
+    });
+  });
+  return (
+    <Overlay zIndex={72} background="rgba(59,47,47,0.55)">
+      <Pressable style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 12 }} onPress={onClose}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: PAPER, borderWidth: 2, borderColor: INK, borderRadius: 18, width: "100%", maxWidth: 320, maxHeight: "75%" }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: 14, borderBottomWidth: 1.5, borderColor: INK }}>
+            <Text style={{ fontSize: 14, fontWeight: "bold", color: INK }}>Куда поместить дело?</Text>
+            <Pressable onPress={onClose}>
+              <Text style={{ fontSize: 18 }}>✕</Text>
+            </Pressable>
+          </View>
+          <ScrollView style={{ padding: 12 }}>
+            {rows.length === 0 && <Text style={{ color: "#a0907e", fontSize: 12.5, fontStyle: "italic" }}>Пока нет ни одной метки. Сначала создай хотя бы одну.</Text>}
+            {rows.map((r) => (
+              <Pressable
+                key={`${r.screenId}-${r.markerId}`}
+                onPress={() => onPick(r.screenId, r.markerId)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: CARD, borderWidth: 1.5, borderColor: INK, borderRadius: 10, padding: 10, marginBottom: 8 }}
+              >
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: r.color, borderWidth: 1.5, borderColor: INK, alignItems: "center", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 13 }}>{r.emoji}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, color: INK, fontWeight: "bold" }}>{r.markerName}</Text>
+                  <Text style={{ fontSize: 10.5, color: "#9a8a76" }}>{r.screenName.replace(/^[^\wА-Яа-я]+/, "")}</Text>
+                </View>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Overlay>
+  );
+}
+
+function GuideOverlay({ guideOffer, onYes, onCustom, onClose }) {
+  const [customText, setCustomText] = useState("");
+  const [showCustom, setShowCustom] = useState(false);
+  if (!guideOffer) return null;
+  const { offer, exhausted } = guideOffer;
+  return (
+    <Overlay zIndex={73} background="rgba(59,47,47,0.55)">
+      <Pressable style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 12 }} onPress={onClose}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: PAPER, borderWidth: 2, borderColor: INK, borderRadius: 18, width: "100%", maxWidth: 300, padding: 18 }}>
+          <View style={{ alignItems: "center", marginBottom: 12 }}>
+            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#BDEFC9", borderWidth: 2, borderColor: INK, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontSize: 30 }}>🧹</Text>
+            </View>
+            <Text style={{ fontSize: 12, color: "#8a7a6a", marginTop: 6, fontWeight: "bold" }}>МИСТЕР ПРОПЕР</Text>
+          </View>
+
+          {exhausted ? (
+            <View>
+              <Text style={{ fontSize: 14, color: INK, textAlign: "center", marginBottom: 16, lineHeight: 20 }}>
+                У меня пока больше нет новых предложений для тебя. Заходи позже.
+              </Text>
+              <PrimaryButton label="Понял" color={GREEN} onPress={onClose} />
+            </View>
+          ) : (
+            <>
+              <Text style={{ fontSize: 14, color: INK, textAlign: "center", marginBottom: 16, lineHeight: 20 }}>{offer.text}</Text>
+
+              {!showCustom ? (
+                <View style={{ flexDirection: "row", gap: 8 }}>
+                  <PrimaryButton label="Да" color={GREEN} onPress={onYes} style={{ flex: 1 }} />
+                  <PrimaryButton label="Нет" color="#fff" textColor={INK} onPress={() => setShowCustom(true)} style={{ flex: 1 }} />
+                </View>
+              ) : (
+                <View>
+                  <Text style={{ fontSize: 12, color: "#8a7a6a", textAlign: "center", marginBottom: 10 }}>А что-то своё хочешь? Напиши — я подумаю.</Text>
+                  <TextInput
+                    value={customText}
+                    onChangeText={setCustomText}
+                    placeholder="Например: заказать пиццу"
+                    placeholderTextColor="#a0907e"
+                    style={{ borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, marginBottom: 10 }}
+                  />
+                  <View style={{ flexDirection: "row", gap: 8 }}>
+                    <PrimaryButton label="Ничего" color="#fff" textColor={INK} onPress={onClose} style={{ flex: 1 }} />
+                    <PrimaryButton label="Добавить" color={GREEN} onPress={() => customText.trim() && onCustom(customText.trim())} style={{ flex: 1 }} />
+                  </View>
+                </View>
+              )}
+            </>
+          )}
+        </Pressable>
+      </Pressable>
+    </Overlay>
+  );
+}
+
+function TitleUnlockDialog({ title, onClose }) {
+  if (!title) return null;
+  return (
+    <Overlay zIndex={78} background="rgba(59,47,47,0.55)">
+      <Pressable style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 12 }} onPress={onClose}>
+        <Pressable onPress={() => {}} style={{ backgroundColor: PAPER, borderWidth: 2, borderColor: INK, borderRadius: 18, width: "100%", maxWidth: 280, padding: 20, alignItems: "center" }}>
+          <Text style={{ fontSize: 12, color: "#8a7a6a", fontWeight: "bold", marginBottom: 8 }}>🏆 НОВЫЙ ТИТУЛ</Text>
+          <Text style={{ fontSize: 34, marginBottom: 4 }}>{title.emoji}</Text>
+          <Text style={{ fontSize: 17, fontWeight: "bold", color: INK, marginBottom: 8 }}>{title.name.toUpperCase()}</Text>
+          <Text style={{ fontSize: 13, color: "#8a7a6a", textAlign: "center", marginBottom: 16 }}>{title.desc}</Text>
+          <PrimaryButton label="Забрать" color={GREEN} onPress={onClose} style={{ width: "100%" }} />
+        </Pressable>
+      </Pressable>
+    </Overlay>
+  );
+}
+
+function TitlesOverlay({ guideProgress, onClose }) {
+  return (
+    <Overlay zIndex={56}>
+      <OverlayHeader onBack={onClose} title="🏆 ТИТУЛЫ" onClose={onClose} />
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        {Object.keys(GUIDE_TITLES).map((guideKey) => {
+          const progress = guideProgress[guideKey] || 0;
+          return (
+            <View key={guideKey} style={{ marginBottom: 18 }}>
+              <Text style={{ fontSize: 12, color: "#8a7a6a", marginBottom: 8 }}>
+                🧹 МИСТЕР ПРОПЕР · выполнено дел: {progress}
+              </Text>
+              {GUIDE_TITLE_TIERS.map((tier) => {
+                const t = GUIDE_TITLES[guideKey][tier];
+                const unlocked = progress >= tier;
+                return (
+                  <View
+                    key={tier}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                      backgroundColor: unlocked ? CARD : "#EFEFEF",
+                      borderWidth: 1.5,
+                      borderColor: INK,
+                      borderRadius: 10,
+                      padding: 10,
+                      marginBottom: 8,
+                      opacity: unlocked ? 1 : 0.55,
+                    }}
+                  >
+                    <Text style={{ fontSize: 22 }}>{unlocked ? t.emoji : "🔒"}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13.5, fontWeight: "bold", color: INK }}>{t.name}</Text>
+                      <Text style={{ fontSize: 10.5, color: "#8a7a6a" }}>{unlocked ? t.desc : `За ${tier} дел от гида`}</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          );
+        })}
+      </ScrollView>
+    </Overlay>
+  );
+}
+
+function OthersList({ pool, onClose, onTake, onRefresh }) {
+  return (
+    <Overlay zIndex={57}>
+      <OverlayHeader onBack={onClose} title="🌐 ДРУГИЕ" onClose={onClose} />
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
+        <Text style={{ fontSize: 11.5, color: "#8a7a6a", marginBottom: 4 }}>
+          Задачи, которыми поделились другие (анонимно). Число — сколько людей поставили себе такое же дело.
+        </Text>
+        {pool.length === 0 && <Text style={{ color: "#a0907e", fontSize: 13, fontStyle: "italic" }}>Пока никто ничего не расшарил.</Text>}
+        {pool.map((p) => (
+          <View key={p.title} style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: CARD, borderWidth: 1.5, borderColor: INK, borderRadius: 10, padding: 10 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13.5, color: INK, fontWeight: "bold" }}>{p.title}</Text>
+              {p.due ? <Text style={{ fontSize: 10.5, color: "#9a8a76" }}>{formatRemaining(p.due)}</Text> : null}
+            </View>
+            <View style={{ minWidth: 26, height: 26, borderRadius: 13, backgroundColor: BLUE, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 }}>
+              <Text style={{ color: "#fff", fontSize: 11, fontWeight: "bold" }}>{p.count}</Text>
+            </View>
+            <Pressable onPress={() => onTake(p)} style={{ backgroundColor: GREEN, borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 }}>
+              <Text style={{ color: "#fff", fontSize: 11.5, fontWeight: "bold" }}>Взять</Text>
+            </Pressable>
+          </View>
+        ))}
+      </ScrollView>
+    </Overlay>
+  );
+}
+
 function dedupeIds(screensObj) {
   const seen = new Set();
   const fix = (oldId, prefix) =>
@@ -1379,6 +1709,15 @@ export default function App() {
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
   const [loaded, setLoaded] = useState(false);
   const [showFieldMenu, setShowFieldMenu] = useState(false);
+  const [guideOffer, setGuideOffer] = useState(null); // { key, offer }
+  const [guideProgress, setGuideProgress] = useState({ proper: 0 });
+  const [guideUsedOffers, setGuideUsedOffers] = useState([]);
+  const [placementConfirm, setPlacementConfirm] = useState(null);
+  const [titleUnlock, setTitleUnlock] = useState(null); // { name, emoji, desc }
+  const [showTitles, setShowTitles] = useState(false);
+  const [pendingPlacement, setPendingPlacement] = useState(null); // { title, due, notes, source }
+  const [showOthers, setShowOthers] = useState(false);
+  const [sharedPool, setSharedPool] = useState([]);
 
   // Загрузка данных при старте
   useEffect(() => {
@@ -1390,6 +1729,8 @@ export default function App() {
           if (data.screens) setScreens(dedupeIds(data.screens));
           if (data.topLevelOrder) setTopLevelOrder(data.topLevelOrder);
           if (data.historyLog) setHistoryLog(data.historyLog);
+          if (data.guideProgress) setGuideProgress(data.guideProgress);
+          if (data.guideUsedOffers) setGuideUsedOffers(data.guideUsedOffers);
         }
       } catch (e) {
         // данных нет или битые — стартуем с initialScreens
@@ -1402,8 +1743,11 @@ export default function App() {
   // Автосохранение при любом изменении
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem("questmap_v1", JSON.stringify({ screens, topLevelOrder, historyLog })).catch(() => {});
-  }, [screens, topLevelOrder, historyLog, loaded]);
+    AsyncStorage.setItem(
+      "questmap_v1",
+      JSON.stringify({ screens, topLevelOrder, historyLog, guideProgress, guideUsedOffers })
+    ).catch(() => {});
+  }, [screens, topLevelOrder, historyLog, guideProgress, guideUsedOffers, loaded]);
 
   const screen = screens[currentId];
   const activeMarker = (screen.markers || []).find((m) => m.id === activeTaskId) || null;
@@ -1426,6 +1770,10 @@ export default function App() {
   const archiveScreen = (scr) => (scr.markers || []).forEach((mk) => archiveTasks(scr, mk));
 
   const handleOpen = (marker) => {
+    if (marker.isGuide) {
+      rollGuideOffer(marker.guideKey || "proper");
+      return;
+    }
     if (marker.linkTo) {
       setCurrentId(marker.linkTo);
       setEditMode(false);
@@ -1438,10 +1786,30 @@ export default function App() {
     updateScreen(currentId, (s) => ({ ...s, markers: s.markers.map((m) => (m.id === markerId ? { ...m, x, y } : m)) }));
   };
 
+  const bumpGuideProgress = (guideKey) => {
+    setGuideProgress((prev) => {
+      const next = { ...prev, [guideKey]: (prev[guideKey] || 0) + 1 };
+      const count = next[guideKey];
+      const tiers = GUIDE_TITLES[guideKey];
+      if (tiers && tiers[count]) {
+        setTitleUnlock(tiers[count]);
+      }
+      return next;
+    });
+  };
+
   const toggleTask = (markerId, taskId) => {
+    const marker = screen.markers.find((m) => m.id === markerId);
+    const task = marker && marker.tasks.find((t) => t.id === taskId);
+    const shouldAward = !!(task && !task.done && !task.titleAwarded && task.source && GUIDE_TITLES[task.source]);
+    if (shouldAward) bumpGuideProgress(task.source);
     updateScreen(currentId, (s) => ({
       ...s,
-      markers: s.markers.map((m) => (m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t)) } : m)),
+      markers: s.markers.map((m) =>
+        m.id === markerId
+          ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, done: !t.done, titleAwarded: shouldAward ? true : t.titleAwarded } : t)) }
+          : m
+      ),
     }));
   };
   const addTask = (markerId, title, due) => {
@@ -1450,6 +1818,99 @@ export default function App() {
       markers: s.markers.map((m) => (m.id === markerId ? { ...m, tasks: [...(m.tasks || []), { id: nextId(), title, due, done: false, notes: [], createdAt: Date.now() }] } : m)),
     }));
   };
+  const addTaskGlobal = (screenId, markerId, title, due, notes, source) => {
+    setScreens((prev) => ({
+      ...prev,
+      [screenId]: {
+        ...prev[screenId],
+        markers: prev[screenId].markers.map((m) =>
+          m.id === markerId
+            ? { ...m, tasks: [...(m.tasks || []), { id: nextId(), title, due: due || null, done: false, notes: (notes || []).map((t) => ({ text: t, done: false })), createdAt: Date.now(), source: source || undefined }] }
+            : m
+        ),
+      },
+    }));
+  };
+  const rollGuideOffer = (guideKey) => {
+    const pool = guideKey === "proper" ? PROPER_OFFERS : [];
+    const fresh = pool.filter((o) => !guideUsedOffers.includes(o.id));
+    if (fresh.length === 0) {
+      setGuideOffer({ key: guideKey, offer: null, exhausted: true });
+      return;
+    }
+    const offer = fresh[Math.floor(Math.random() * fresh.length)];
+    setGuideOffer({ key: guideKey, offer });
+  };
+  const handleGuideYes = () => {
+    if (!guideOffer || !guideOffer.offer) return;
+    setGuideUsedOffers((prev) => [...prev, guideOffer.offer.id]);
+    setPendingPlacement({ title: guideOffer.offer.taskTitle, due: null, notes: guideOffer.offer.starterNotes || [], source: guideOffer.key });
+    setGuideOffer(null);
+  };
+  const handleGuideCustom = (text) => {
+    setPendingPlacement({ title: text, due: null, notes: [], source: undefined });
+    setGuideOffer(null);
+  };
+  const placeTask = (screenId, markerId) => {
+    if (!pendingPlacement) return;
+    addTaskGlobal(screenId, markerId, pendingPlacement.title, pendingPlacement.due, pendingPlacement.notes, pendingPlacement.source);
+    const scr = screens[screenId];
+    const mk = scr && scr.markers.find((m) => m.id === markerId);
+    setPlacementConfirm({ title: pendingPlacement.title, markerName: mk ? mk.name : "" });
+    setPendingPlacement(null);
+  };
+
+  const loadSharedPool = async () => {
+    if (SHARE_API.baseUrl) {
+      try {
+        const res = await fetch(`${SHARE_API.baseUrl}/pool`);
+        const data = await res.json();
+        setSharedPool(data);
+        return;
+      } catch (e) {
+        // сервер недоступен — покажем локальный демо-пул ниже
+      }
+    }
+    try {
+      const raw = await AsyncStorage.getItem(SHARE_POOL_KEY);
+      const items = raw ? JSON.parse(raw) : [];
+      const groups = {};
+      items.forEach((it) => {
+        const key = (it.title || "").trim().toLowerCase();
+        if (!key) return;
+        if (!groups[key]) groups[key] = { title: it.title, due: it.due, count: 0 };
+        groups[key].count += 1;
+        groups[key].due = it.due;
+      });
+      setSharedPool(Object.values(groups));
+    } catch (e) {
+      setSharedPool([]);
+    }
+  };
+
+  const shareTaskToPool = async (title, due) => {
+    if (SHARE_API.baseUrl) {
+      try {
+        await fetch(`${SHARE_API.baseUrl}/share`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, due }),
+        });
+        return;
+      } catch (e) {
+        // сервер недоступен — сохраним локально ниже
+      }
+    }
+    try {
+      const raw = await AsyncStorage.getItem(SHARE_POOL_KEY);
+      const items = raw ? JSON.parse(raw) : [];
+      items.push({ title, due });
+      await AsyncStorage.setItem(SHARE_POOL_KEY, JSON.stringify(items));
+    } catch (e) {
+      // молча пропускаем — шаринг необязателен
+    }
+  };
+
   const deleteTask = (markerId, taskId) => {
     const marker = screen.markers.find((m) => m.id === markerId);
     const task = marker && marker.tasks.find((t) => t.id === taskId);
@@ -1464,13 +1925,21 @@ export default function App() {
   const addNoteLocal = (markerId, taskId, text) => {
     updateScreen(currentId, (s) => ({
       ...s,
-      markers: s.markers.map((m) => (m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, notes: [...(t.notes || []), text] } : t)) } : m)),
+      markers: s.markers.map((m) => (m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, notes: [...(t.notes || []), { text, done: false }] } : t)) } : m)),
     }));
   };
   const removeNoteLocal = (markerId, taskId, idx) => {
     updateScreen(currentId, (s) => ({
       ...s,
       markers: s.markers.map((m) => (m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, notes: t.notes.filter((_, i) => i !== idx) } : t)) } : m)),
+    }));
+  };
+  const toggleNoteLocal = (markerId, taskId, idx) => {
+    updateScreen(currentId, (s) => ({
+      ...s,
+      markers: s.markers.map((m) =>
+        m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, notes: t.notes.map((n, i) => (i === idx ? { ...n, done: !n.done } : n)) } : t)) } : m
+      ),
     }));
   };
 
@@ -1612,7 +2081,7 @@ export default function App() {
     const { screenId, markerId, taskId } = journalDetail;
     setScreens((prev) => ({
       ...prev,
-      [screenId]: { ...prev[screenId], markers: prev[screenId].markers.map((m) => (m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, notes: [...(t.notes || []), text] } : t)) } : m)) },
+      [screenId]: { ...prev[screenId], markers: prev[screenId].markers.map((m) => (m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, notes: [...(t.notes || []), { text, done: false }] } : t)) } : m)) },
     }));
   };
   const removeNoteGlobal = (idx) => {
@@ -1623,12 +2092,25 @@ export default function App() {
       [screenId]: { ...prev[screenId], markers: prev[screenId].markers.map((m) => (m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, notes: t.notes.filter((_, i) => i !== idx) } : t)) } : m)) },
     }));
   };
+  const toggleNoteGlobal = (idx) => {
+    if (!journalDetail) return;
+    const { screenId, markerId, taskId } = journalDetail;
+    setScreens((prev) => ({
+      ...prev,
+      [screenId]: {
+        ...prev[screenId],
+        markers: prev[screenId].markers.map((m) =>
+          m.id === markerId ? { ...m, tasks: m.tasks.map((t) => (t.id === taskId ? { ...t, notes: t.notes.map((n, i) => (i === idx ? { ...n, done: !n.done } : n)) } : t)) } : m
+        ),
+      },
+    }));
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: PAPER }} edges={["top", "bottom"]}>
       <StatusBar barStyle="dark-content" />
 
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 3, borderColor: INK, borderStyle: "dashed" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1.5, borderColor: INK, backgroundColor: BAR_BG }}>
         {screen.parentId ? (
           <Pressable
             onPress={() => {
@@ -1645,17 +2127,14 @@ export default function App() {
         <Text style={{ fontSize: 16, fontWeight: "bold", color: INK, textAlign: "center", flex: 1 }} numberOfLines={1}>
           {screen.name}
         </Text>
-        {topLevelOrder.includes(currentId) && currentId !== "main" ? (
-          <Pressable onPress={() => setShowFieldMenu((v) => !v)} style={{ minWidth: 46, alignItems: "flex-end" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minWidth: 62, justifyContent: "flex-end" }}>
+          <Pressable onPress={() => setShowTitles(true)}>
+            <Text style={{ fontSize: 17 }}>🏆</Text>
+          </Pressable>
+          <Pressable onPress={() => setShowFieldMenu((v) => !v)}>
             <Text style={{ fontSize: 18, fontWeight: "bold" }}>⋮</Text>
           </Pressable>
-        ) : currentId === "home" ? (
-          <Pressable onPress={() => setShowFieldMenu((v) => !v)} style={{ minWidth: 46, alignItems: "flex-end" }}>
-            <Text style={{ fontSize: 18, fontWeight: "bold" }}>⋮</Text>
-          </Pressable>
-        ) : (
-          <View style={{ width: 46 }} />
-        )}
+        </View>
       </View>
 
       {showFieldMenu && (
@@ -1683,10 +2162,21 @@ export default function App() {
                 setShowFieldMenu(false);
                 pickBackgroundImage(currentId);
               }}
-              style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: topLevelOrder.includes(currentId) && currentId !== "main" ? 1 : 0, borderColor: INK }}
+              style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: 1, borderColor: INK }}
             >
               <Text style={{ fontSize: 13, color: INK }}>🖼 Изменить фон</Text>
             </Pressable>
+            {(currentId === "main" || currentId === "home") && (
+              <Pressable
+                onPress={() => {
+                  setShowFieldMenu(false);
+                  updateScreenImage(currentId, currentId === "main" ? MAP_DEFAULT_BG : DOM_DEFAULT_BG);
+                }}
+                style={{ paddingVertical: 10, paddingHorizontal: 14, borderBottomWidth: topLevelOrder.includes(currentId) && currentId !== "main" ? 1 : 0, borderColor: INK }}
+              >
+                <Text style={{ fontSize: 13, color: INK }}>↺ Фон по умолчанию</Text>
+              </Pressable>
+            )}
             {topLevelOrder.includes(currentId) && currentId !== "main" && (
               <Pressable
                 onPress={() => {
@@ -1709,7 +2199,7 @@ export default function App() {
       >
         {screen.image && (
           <Image
-            source={{ uri: screen.image }}
+            source={resolveImageSource(screen.image)}
             style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
             resizeMode="cover"
           />
@@ -1745,7 +2235,7 @@ export default function App() {
         )}
 
         {activeMarker && (
-          <TaskScreen marker={activeMarker} onClose={() => setActiveTaskId(null)} onToggle={toggleTask} onAdd={addTask} onDelete={deleteTask} onAddNote={addNoteLocal} onRemoveNote={removeNoteLocal} />
+          <TaskScreen marker={activeMarker} onClose={() => setActiveTaskId(null)} onToggle={toggleTask} onAdd={addTask} onDelete={deleteTask} onAddNote={addNoteLocal} onRemoveNote={removeNoteLocal} onToggleNote={toggleNoteLocal} onShare={shareTaskToPool} />
         )}
         {showAddMarker && (
           <NewPinForm title="Новая метка" confirmLabel="Добавить метку" showPlaceHints={currentId !== "home"} onClose={() => setShowAddMarker(false)} onCreate={createMarker} />
@@ -1765,9 +2255,30 @@ export default function App() {
             }}
             onAddNote={addNoteGlobal}
             onRemoveNote={removeNoteGlobal}
+            onToggleNote={toggleNoteGlobal}
           />
         )}
         {showHistory && <HistoryList entries={historyEntries} onClose={() => setShowHistory(false)} onDeleteEntry={hardDeleteEntry} />}
+        {showTitles && <TitlesOverlay guideProgress={guideProgress} onClose={() => setShowTitles(false)} />}
+        {showOthers && (
+          <OthersList
+            pool={sharedPool}
+            onClose={() => setShowOthers(false)}
+            onRefresh={loadSharedPool}
+            onTake={(p) => {
+              setPendingPlacement({ title: p.title, due: p.due || null, notes: [], source: undefined });
+              setShowOthers(false);
+            }}
+          />
+        )}
+        {guideOffer && <GuideOverlay guideOffer={guideOffer} onYes={handleGuideYes} onCustom={handleGuideCustom} onClose={() => setGuideOffer(null)} />}
+        {titleUnlock && <TitleUnlockDialog title={titleUnlock} onClose={() => setTitleUnlock(null)} />}
+        {pendingPlacement && (
+          <MarkerPickerModal screens={screens} onClose={() => setPendingPlacement(null)} onPick={(screenId, markerId) => placeTask(screenId, markerId)} />
+        )}
+        {placementConfirm && (
+          <InfoDialog message={`«${placementConfirm.title}» добавлено в «${placementConfirm.markerName}».`} onClose={() => setPlacementConfirm(null)} />
+        )}
 
         {pendingDelete && (
           <ConfirmDialog
@@ -1791,13 +2302,14 @@ export default function App() {
         )}
       </View>
 
-      <View style={{ borderTopWidth: 3, borderColor: INK, borderStyle: "dashed", backgroundColor: PAPER, padding: 10 }}>
+      <View style={{ borderTopWidth: 1.5, borderColor: INK, backgroundColor: BAR_BG, padding: 10 }}>
         {!editMode ? (
-          <View style={{ flexDirection: "row", gap: 6, justifyContent: "center", alignItems: "center" }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center", alignItems: "center", rowGap: 6 }}>
             <Chip
               label="📖 Журнал"
               onPress={() => {
                 setShowHistory(false);
+                setShowOthers(false);
                 setShowJournal(true);
               }}
               style={{ borderRadius: 18, backgroundColor: "#fff" }}
@@ -1807,7 +2319,18 @@ export default function App() {
               onPress={() => {
                 setShowJournal(false);
                 setJournalDetail(null);
+                setShowOthers(false);
                 setShowHistory(true);
+              }}
+              style={{ borderRadius: 18, backgroundColor: "#fff" }}
+            />
+            <Chip
+              label="🌐 Другие"
+              onPress={() => {
+                setShowJournal(false);
+                setShowHistory(false);
+                setShowOthers(true);
+                loadSharedPool();
               }}
               style={{ borderRadius: 18, backgroundColor: "#fff" }}
             />
@@ -1818,6 +2341,7 @@ export default function App() {
                 setShowJournal(false);
                 setJournalDetail(null);
                 setShowHistory(false);
+                setShowOthers(false);
                 setEditMode(true);
               }}
               style={{ borderRadius: 18, backgroundColor: "#fff" }}
