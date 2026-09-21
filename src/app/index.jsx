@@ -8,6 +8,7 @@ import {
   PanResponder,
   StatusBar,
   Image,
+  BackHandler,
 } from "react-native";
 // Требует: expo install expo-image-picker 
 import * as ImagePicker from "expo-image-picker";
@@ -20,7 +21,7 @@ let MAP_DEFAULT_BG = null;
 try {
   DOM_DEFAULT_BG = require("../assets/backgrounds/dom-bg.jpg");
 } catch (e) {
-  // файла ещё нет — не страшно, останется обычный цвет
+  // файла ещё нет
 }
 try {
   MAP_DEFAULT_BG = require("../assets/backgrounds/map-bg.jpg");
@@ -33,13 +34,32 @@ function resolveImageSource(img) {
   return typeof img === "number" ? img : { uri: img };
 }
 
-const INK = "#3B2F2F";
-const CARD = "#FFF7E8";
-const PAPER = "#FFFDF7";
+let INK = "#3B2F2F";
+let PAPER = "#FFFDF7";
+let CARD = "#FFF7E8";
+let BAR_BG = "#DCEFF6";
+
 const GREEN = "#2ECC71";
 const BLUE = "#2F6FDE";
-const BAR_BG = "#DCEFF6";
-const PALETTE = ["#E4572E", "#2A9D8F", "#E9C46A", "#8E44AD", "#3D5A80", "#E76F51", "#457B9D", "#B08968"];
+
+const THEMES = {
+  light: { label: "☀️ Светлая", ink: "#3B2F2F", paper: "#FFFDF7", card: "#FFF7E8", bar: "#DCEFF6" },
+  dark: { label: "🌙 Тёмная", ink: "#EDE3D3", paper: "#1E1A16", card: "#2A2521", bar: "#2E2A26" },
+  blue: { label: "🔵 Синяя", ink: "#1F3A52", paper: "#EAF3FB", card: "#D9EBFA", bar: "#BFE0F5" },
+  red: { label: "🔴 Красная", ink: "#4A1F1F", paper: "#FBEFEF", card: "#F8DEDE", bar: "#F3C5C5" },
+  green: { label: "🟢 Зелёная", ink: "#1F3B1F", paper: "#EFF8EF", card: "#DFF3DF", bar: "#C5E8C5" },
+  yellow: { label: "🟡 Жёлтая", ink: "#4A3E12", paper: "#FBF8E8", card: "#F7F0C8", bar: "#F0E29A" },
+};
+
+function applyTheme(name) {
+  const t = THEMES[name] || THEMES.light;
+  INK = t.ink;
+  PAPER = t.paper;
+  CARD = t.card;
+  BAR_BG = t.bar;
+}
+
+const PALETTE = ["#FF4B3E", "#00C9A7", "#FFC300", "#8B2FC9", "#2D6CDF", "#FF6F00", "#00A8E8", "#E6399B"];
 
 const THEME_BG = {
   terrain: "#A3D584",
@@ -215,8 +235,7 @@ const PLACE_HINTS = [
 ];
 
 // Плоские, конкретные подсказки дел — привязаны к типу места (marker.type).
-// Никакой абстракции ("завести традицию", "выспаться") — только то, что
-// реально делают в этом месте.
+
 const TASK_HINTS = {
   home: [
     "Поклеить обои", "Покрасить стены", "Поменять пол", "Починить мебель", "Собрать мебель",
@@ -306,7 +325,19 @@ const PROPER_OFFERS = [
   },
 ];
 
-// ==== Титулы за задания от Гида (пока только Мистер Пропер) ====
+// ==== Мистер Жопер: пул заданий (дисциплина, спорт, рутина) ====
+const JOPER_OFFERS = [
+  { id: "j_pushups", text: "ОТЖИМАНИЯ. 3 ПОДХОДА. СЕГОДНЯ.", taskTitle: "Сделать 3 подхода отжиманий" },
+  { id: "j_run", text: "ПРОБЕЖКА. 3 КМ. НЕ НОЙ.", taskTitle: "Пробежать 3 км" },
+  { id: "j_wake", text: "ВСТАТЬ В 7. БЕЗ ОТГОВОРОК.", taskTitle: "Встать в 7 утра" },
+  { id: "j_plank", text: "ПЛАНКА. 2 МИНУТЫ. ДЕРЖАТЬ.", taskTitle: "Планка 2 минуты" },
+  { id: "j_sugar", text: "НЕДЕЛЯ БЕЗ САХАРА. СЛАБО?", taskTitle: "Неделя без сахара" },
+  { id: "j_sleep", text: "СПАТЬ 8 ЧАСОВ. НЕ 6. ВОСЕМЬ.", taskTitle: "Спать 8 часов" },
+  { id: "j_steps", text: "10 000 ШАГОВ. НЕ МЕНЬШЕ.", taskTitle: "Пройти 10 000 шагов" },
+  { id: "j_cold", text: "ХОЛОДНЫЙ ДУШ. 30 СЕКУНД.", taskTitle: "Холодный душ 30 секунд" },
+];
+
+// ==== Титулы за задания от Гида ====
 // Ключ — сколько заданий от гида выполнено; открывается по достижении.
 const GUIDE_TITLES = {
   proper: {
@@ -316,11 +347,72 @@ const GUIDE_TITLES = {
     7: { name: "Домовой", emoji: "🧙", desc: "Дом чувствует тебя." },
     10: { name: "Мастер чистоты", emoji: "👑", desc: "Идеал. Достигнут." },
   },
+  joper: {
+    1: { name: "Новобранец", emoji: "🪖", desc: "Принят в строй." },
+    3: { name: "Боец", emoji: "💪", desc: "Дисциплина есть." },
+    5: { name: "Сержант", emoji: "🎖", desc: "Сам можешь командовать." },
+    7: { name: "Лейтенант", emoji: "⚔️", desc: "Тело — инструмент." },
+    10: { name: "Капитан", emoji: "🏅", desc: "Не сломался. Уважаю." },
+  },
 };
 const GUIDE_TITLE_TIERS = [1, 3, 5, 7, 10];
 
+// Метаданные гидов — для GuideOverlay и TitlesOverlay
+const GUIDE_META = {
+  proper: { name: "МИСТЕР ПРОПЕР", emoji: "🧹", color: "#BDEFC9" },
+  joper: { name: "МИСТЕР ЖОПЕР", emoji: "🎖", color: "#FFD5B0" },
+};
+
+// После 10 принятых заданий открывается рандомайзер — большой плоский
+// пул рутинных дел, из которого можно крутить случайное задание.
+const GUIDE_CHAINS = {
+  proper: PROPER_OFFERS,
+  joper: JOPER_OFFERS,
+};
+
+const PROPER_RANDOM_POOL = [
+  "Помыть посуду", "Вынести мусор", "Пропылесосить", "Помыть полы", "Протереть пыль",
+  "Полить цветы", "Помыть окна", "Разобрать шкаф", "Постирать бельё", "Погладить одежду",
+  "Заправить кровать", "Почистить плиту", "Помыть холодильник", "Разморозить морозилку",
+  "Организовать ящик для столовых приборов", "Помыть люстру", "Почистить ковёр", "Помыть зеркала",
+  "Разобрать балкон", "Починить кран", "Заменить лампочку", "Поклеить обои", "Покрасить стену",
+  "Собрать мебель", "Повесить полку", "Убрать провода", "Помыть вентиляцию",
+  "Почистить стиральную машину", "Заменить фильтр для воды", "Помыть микроволновку",
+  "Почистить чайник от накипи", "Помыть вытяжку", "Разобрать аптечку", "Проверить сроки лекарств",
+  "Организовать документы", "Разобрать почту", "Оплатить коммунальные", "Проверить счётчики",
+  "Помыть входную дверь", "Почистить обувь", "Разобрать обувницу", "Помыть зонт",
+  "Постирать шторы", "Помыть карниз", "Почистить кондиционер", "Помыть радиаторы",
+  "Убрать паутину", "Помыть подоконники", "Разобрать кладовку", "Подписать банки с крупами",
+  "Разобрать специи", "Помыть банки", "Организовать пакеты", "Сложить пакеты треугольником",
+  "Починить стул", "Смазать петли", "Помыть дверные ручки", "Продезинфицировать выключатели",
+  "Помыть пульты", "Почистить клавиатуру", "Помыть мышь", "Протереть монитор",
+  "Убрать пыль с техники", "Организовать зарядки", "Подписать провода",
+  "Разобрать ящик с мелочами", "Выбросить сломанные вещи", "Отдать вещи на благотворительность",
+  "Продать ненужное", "Сфотографировать вещи для продажи", "Помыть клетку питомца",
+  "Почистить аквариум", "Помыть миски питомца", "Купить корм", "Записаться к ветеринару",
+  "Помыть игрушки питомца", "Постирать лежанку", "Расчесать питомца", "Подстричь когти",
+  "Помыть лапы после прогулки", "Проверить дымовую сигнализацию", "Проверить огнетушитель",
+  "Собрать тревожный чемодан", "Проверить аптечку первой помощи", "Составить план эвакуации",
+  "Проверить проводку", "Убрать легковоспламеняющееся", "Проверить замки", "Смазать замки",
+  "Починить доводчик", "Помыть домофон", "Проверить видеонаблюдение", "Обновить пароли",
+  "Сделать резервную копию", "Почистить телефон", "Удалить лишние фото", "Разобрать галерею",
+  "Организовать облако", "Отписаться от рассылок", "Удалить неиспользуемые приложения",
+];
+
+// У Жопера пока нет отдельного большого списка — используем его обычные
+// Когда появится свой список на 100 пунктов, просто
+
+const JOPER_RANDOM_POOL = JOPER_OFFERS.map((o) => o.taskTitle);
+
+const GUIDE_RANDOM_POOLS = {
+  proper: PROPER_RANDOM_POOL,
+  joper: JOPER_RANDOM_POOL,
+};
+
+const GUIDE_UNLOCK_RANDOM_AT = 10;
+
 // ==== Публичный пул задач («Другие») ====
-// Сюда позже впишешь адрес своего сервера (и ключ доступа, если нужен).
+// адрес своего сервера
 // Ожидаемый протокол, когда сервер появится:
 //   POST {SHARE_API.baseUrl}/share   body: { title, due }   — анонимно добавить в пул
 //   GET  {SHARE_API.baseUrl}/pool                            — получить пул: [{ title, due, count }]
@@ -338,10 +430,7 @@ const initialScreens = {
     theme: "terrain",
     parentId: null,
     image: MAP_DEFAULT_BG,
-    markers: [
-      { id: "dom", special: true, name: "Дом", emoji: "🏠", color: "#E4572E", x: 50, y: 75, linkTo: "home" },
-      { id: "guide", isGuide: true, guideKey: "proper", name: "Гид", emoji: "🧹", color: "#BDEFC9", x: 82, y: 18 },
-    ],
+    markers: [{ id: "dom", special: true, name: "Дом", emoji: "🏠", color: "#E4572E", x: 50, y: 75, linkTo: "home" }],
   },
   home: {
     id: "home",
@@ -678,7 +767,7 @@ function HintsModal({ title, groups, items, onClose, onPick }) {
 
 /* -------- Confirm dialog -------- */
 
-function ConfirmDialog({ message, onConfirm, onCancel }) {
+function ConfirmDialog({ message, onConfirm, onCancel, confirmLabel = "Удалить", confirmColor = "#E4572E" }) {
   return (
     <Overlay zIndex={65} background="rgba(59,47,47,0.5)">
       <Pressable style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 12 }} onPress={onCancel}>
@@ -689,7 +778,7 @@ function ConfirmDialog({ message, onConfirm, onCancel }) {
           <Text style={{ fontSize: 14, color: INK, marginBottom: 14, textAlign: "center" }}>{message}</Text>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <PrimaryButton label="Отмена" color="#fff" textColor={INK} onPress={onCancel} style={{ flex: 1 }} />
-            <PrimaryButton label="Удалить" color="#E4572E" onPress={onConfirm} style={{ flex: 1 }} />
+            <PrimaryButton label={confirmLabel} color={confirmColor} onPress={onConfirm} style={{ flex: 1 }} />
           </View>
         </Pressable>
       </Pressable>
@@ -941,16 +1030,17 @@ function TaskDetailOverlay({ task, markerColor, onBack, onAddNote, onRemoveNote,
 
 /* -------- Task list ("Дела") for one marker -------- */
 
-function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onRemoveNote, onToggleNote, onShare }) {
+function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onRemoveNote, onToggleNote, onShare, onIncrementRepeat }) {
   const [title, setTitle] = useState("");
   const [dueMode, setDueMode] = useState("none");
   const [dueDate, setDueDate] = useState("");
   const [dueTime, setDueTime] = useState("");
   const [dueDays, setDueDays] = useState(1);
   const [noteTaskId, setNoteTaskId] = useState(null);
-  const [showHints, setShowHints] = useState(false);
   const [pendingDeleteTaskId, setPendingDeleteTaskId] = useState(null);
   const [shareToPool, setShareToPool] = useState(false);
+  const [repeatOn, setRepeatOn] = useState(false);
+  const [repeatTarget, setRepeatTarget] = useState(5);
   if (!marker) return null;
 
   const noteTask = marker.tasks && marker.tasks.find((t) => t.id === noteTaskId);
@@ -964,7 +1054,8 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
     } else if (dueMode === "duration") {
       due = { target: Date.now() + dueDays * 86400000, kind: "duration" };
     }
-    onAdd(marker.id, title.trim(), due);
+    const repeat = repeatOn ? { count: 0, target: Math.max(1, repeatTarget) } : null;
+    onAdd(marker.id, title.trim(), due, repeat);
     if (shareToPool && onShare) onShare(title.trim(), due);
     setTitle("");
     setDueMode("none");
@@ -972,6 +1063,8 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
     setDueTime("");
     setDueDays(1);
     setShareToPool(false);
+    setRepeatOn(false);
+    setRepeatTarget(5);
   };
 
   return (
@@ -1005,22 +1098,42 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
                   padding: 10,
                 }}
               >
-                <Pressable
-                  onPress={() => onToggle(marker.id, t.id)}
-                  style={{
-                    width: 19,
-                    height: 19,
-                    borderRadius: 5,
-                    borderWidth: 2,
-                    borderColor: INK,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    marginTop: 2,
-                    backgroundColor: t.done ? marker.color : "transparent",
-                  }}
-                >
-                  {t.done && <Text style={{ color: "#fff", fontSize: 11 }}>✓</Text>}
-                </Pressable>
+                {t.repeat && !t.done ? (
+                  <Pressable
+                    onPress={() => onIncrementRepeat(marker.id, t.id)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 7,
+                      borderWidth: 2,
+                      borderColor: INK,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginTop: 2,
+                      backgroundColor: "#fff",
+                    }}
+                  >
+                    <View style={{ width: 14, height: 2.5, borderRadius: 1.5, backgroundColor: INK, position: "absolute" }} />
+                    <View style={{ width: 2.5, height: 14, borderRadius: 1.5, backgroundColor: INK, position: "absolute" }} />
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={() => onToggle(marker.id, t.id)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 7,
+                      borderWidth: 2,
+                      borderColor: INK,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      marginTop: 2,
+                      backgroundColor: t.done ? BLUE : "transparent",
+                    }}
+                  >
+                    {t.done && <Text style={{ color: "#fff", fontSize: 15 }}>✓</Text>}
+                  </Pressable>
+                )}
 
                 <Pressable style={{ flex: 1 }} onPress={() => setNoteTaskId(t.id)}>
                   <Text
@@ -1034,6 +1147,16 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
                   >
                     {t.title}
                   </Text>
+                  {t.repeat && (
+                    <View style={{ marginTop: 4, marginBottom: 2 }}>
+                      <View style={{ height: 4, borderRadius: 2, backgroundColor: "#E5DCC8", overflow: "hidden" }}>
+                        <View style={{ height: 4, borderRadius: 2, backgroundColor: GREEN, width: `${Math.min(100, (t.repeat.count / t.repeat.target) * 100)}%` }} />
+                      </View>
+                      <Text style={{ fontSize: 10.5, color: "#9a8a76", marginTop: 2 }}>
+                        {t.repeat.count}/{t.repeat.target}
+                      </Text>
+                    </View>
+                  )}
                   {t.notes && t.notes.length > 0 && (
                     <View style={{ marginTop: 3, gap: 1 }}>
                       {t.notes.map((n, i) => (
@@ -1065,14 +1188,38 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
           style={{ borderWidth: 2, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, marginBottom: 8 }}
         />
 
-        <Pressable
-          onPress={() => setShowHints(true)}
-          style={{ alignItems: "center", justifyContent: "center", borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingVertical: 6, marginBottom: 8, backgroundColor: CARD }}
-        >
-          <Text style={{ fontSize: 12, color: INK }}>💡 Подсказки — что можно сделать?</Text>
+        <DueEditor dueMode={dueMode} setDueMode={setDueMode} dueDate={dueDate} setDueDate={setDueDate} dueTime={dueTime} setDueTime={setDueTime} dueDays={dueDays} setDueDays={setDueDays} />
+
+        <Pressable onPress={() => setRepeatOn((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: repeatOn ? 6 : 10 }}>
+          <View
+            style={{
+              width: 18,
+              height: 18,
+              borderRadius: 5,
+              borderWidth: 1.5,
+              borderColor: INK,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: repeatOn ? INK : "#fff",
+            }}
+          >
+            {repeatOn && <Text style={{ color: "#fff", fontSize: 11 }}>✓</Text>}
+          </View>
+          <Text style={{ fontSize: 11.5, color: INK }}>🔁 Повторяющееся задание</Text>
         </Pressable>
 
-        <DueEditor dueMode={dueMode} setDueMode={setDueMode} dueDate={dueDate} setDueDate={setDueDate} dueTime={dueTime} setDueTime={setDueTime} dueDays={dueDays} setDueDays={setDueDays} />
+        {repeatOn && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 10, borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 10 }}>
+            <Pressable onPress={() => setRepeatTarget((n) => Math.max(1, n - 1))} style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: INK, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontWeight: "bold" }}>−</Text>
+            </Pressable>
+            <Text style={{ minWidth: 26, textAlign: "center", fontWeight: "bold", color: INK }}>{repeatTarget}</Text>
+            <Pressable onPress={() => setRepeatTarget((n) => n + 1)} style={{ width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: INK, alignItems: "center", justifyContent: "center" }}>
+              <Text style={{ fontWeight: "bold" }}>+</Text>
+            </Pressable>
+            <Text style={{ fontSize: 12, color: "#8a7a6a" }}>раз — дело завершится, когда наберётся столько</Text>
+          </View>
+        )}
 
         <Pressable onPress={() => setShareToPool((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <View
@@ -1094,18 +1241,6 @@ function TaskScreen({ marker, onClose, onToggle, onAdd, onDelete, onAddNote, onR
 
         <PrimaryButton label="Добавить дело" color="#BDEFC9" textColor={INK} onPress={submit} />
       </View>
-
-      {showHints && (
-        <HintsModal
-          title={`💡 Что можно сделать: ${marker.name}`}
-          items={TASK_HINTS[marker.type] || TASK_HINTS.general}
-          onClose={() => setShowHints(false)}
-          onPick={(it) => {
-            setTitle(it);
-            setShowHints(false);
-          }}
-        />
-      )}
 
       {noteTask && (
         <TaskDetailOverlay
@@ -1213,7 +1348,7 @@ function NewPinForm({ title, onClose, onCreate, confirmLabel, showColor = true, 
           <View style={{ flexDirection: "row", gap: 6, marginBottom: 8 }}>
             <TextInput
               value={emoji}
-              onChangeText={(v) => setEmoji(v.slice(0, 2))}
+              onChangeText={(v) => setEmoji(Array.from(v).slice(0, 4).join(""))}
               style={{ width: 44, textAlign: "center", fontSize: 18, borderWidth: 2, borderColor: INK, borderRadius: 8, paddingVertical: 6 }}
             />
             <TextInput
@@ -1286,7 +1421,7 @@ function NewPinForm({ title, onClose, onCreate, confirmLabel, showColor = true, 
           <PrimaryButton
             label={confirmLabel}
             color={color}
-            onPress={() => name.trim() && onCreate({ name: name.trim(), emoji: emoji.trim() || "📍", color, type, image, asField })}
+            onPress={() => name.trim() && onCreate({ name: name.trim(), emoji: emoji.trim(), color, type, image, asField })}
           />
         </Pressable>
       </Pressable>
@@ -1330,6 +1465,16 @@ function JournalList({ entries, onClose, onOpenDetail }) {
               <Text style={{ fontSize: 10.5, color: "#9a8a76" }}>
                 {e.screenName.replace(/^[^\wА-Яа-я]+/, "")} · {e.markerName}
               </Text>
+              {e.task.repeat && (
+                <View style={{ marginTop: 5 }}>
+                  <View style={{ height: 4, borderRadius: 2, backgroundColor: "#E5DCC8", overflow: "hidden" }}>
+                    <View style={{ height: 4, borderRadius: 2, backgroundColor: GREEN, width: `${Math.min(100, (e.task.repeat.count / e.task.repeat.target) * 100)}%` }} />
+                  </View>
+                  <Text style={{ fontSize: 10, color: "#9a8a76", marginTop: 2 }}>
+                    {e.task.repeat.count}/{e.task.repeat.target}
+                  </Text>
+                </View>
+              )}
             </View>
             <Text style={{ fontSize: 10.5, color: "#6b5b4d", fontFamily: "monospace" }}>{formatRemaining(e.task.due)}</Text>
           </Pressable>
@@ -1415,6 +1560,7 @@ function HistoryList({ entries, onClose, onDeleteEntry }) {
                 <Text style={{ fontSize: 13, color: INK, fontWeight: "bold" }}>{e.task.title}</Text>
                 <Text style={{ fontSize: 10, color: "#9a8a76" }}>
                   {e.markerName} · создано {fmtDate(e.task.createdAt)}
+                  {e.task.repeat ? ` · ${e.task.repeat.count}/${e.task.repeat.target}` : ""}
                 </Text>
               </View>
               <Text style={{ fontSize: 11, fontWeight: "bold", color: statusColor }}>{status}</Text>
@@ -1486,58 +1632,102 @@ function MarkerPickerModal({ screens, onPick, onClose }) {
   );
 }
 
-function GuideOverlay({ guideOffer, onYes, onCustom, onClose }) {
+function GuidesListOverlay({ onSelect, onClose }) {
+  return (
+    <Overlay zIndex={73}>
+      <OverlayHeader onBack={onClose} title="🧭 ГИДЫ" onClose={onClose} />
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
+        {Object.keys(GUIDE_META).map((key) => {
+          const meta = GUIDE_META[key];
+          return (
+            <Pressable
+              key={key}
+              onPress={() => onSelect(key)}
+              style={{ flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: CARD, borderWidth: 1.5, borderColor: INK, borderRadius: 12, padding: 12, marginBottom: 8 }}
+            >
+              <View style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: meta.color, borderWidth: 2, borderColor: INK, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: 22 }}>{meta.emoji}</Text>
+              </View>
+              <Text style={{ fontSize: 15, fontWeight: "bold", color: INK, flex: 1 }}>{meta.name}</Text>
+              <Text style={{ fontSize: 16, color: "#9a8a76" }}>›</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </Overlay>
+  );
+}
+
+function GuideTasksOverlay({ guideKey, chainOffer, takenCount, guideRoll, onTakeChain, onCustom, onRollRandom, onTakeRandom, onBack, onClose }) {
   const [customText, setCustomText] = useState("");
   const [showCustom, setShowCustom] = useState(false);
-  if (!guideOffer) return null;
-  const { offer, exhausted } = guideOffer;
+  const meta = GUIDE_META[guideKey] || { name: "ГИД", emoji: "🧑", color: "#EEE" };
+  const randomUnlocked = (takenCount || 0) >= GUIDE_UNLOCK_RANDOM_AT;
+  const rollIsMine = guideRoll && guideRoll.guideKey === guideKey;
+
   return (
-    <Overlay zIndex={73} background="rgba(59,47,47,0.55)">
-      <Pressable style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 12 }} onPress={onClose}>
-        <Pressable onPress={() => {}} style={{ backgroundColor: PAPER, borderWidth: 2, borderColor: INK, borderRadius: 18, width: "100%", maxWidth: 300, padding: 18 }}>
-          <View style={{ alignItems: "center", marginBottom: 12 }}>
-            <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: "#BDEFC9", borderWidth: 2, borderColor: INK, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 30 }}>🧹</Text>
-            </View>
-            <Text style={{ fontSize: 12, color: "#8a7a6a", marginTop: 6, fontWeight: "bold" }}>МИСТЕР ПРОПЕР</Text>
+    <Overlay zIndex={74} background={PAPER}>
+      <OverlayHeader onBack={onBack} backLabel="Гиды" title={meta.name} onClose={onClose} />
+      <ScrollView contentContainerStyle={{ padding: 18 }}>
+        <View style={{ alignItems: "center", marginBottom: 16 }}>
+          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: meta.color, borderWidth: 2, borderColor: INK, alignItems: "center", justifyContent: "center" }}>
+            <Text style={{ fontSize: 30 }}>{meta.emoji}</Text>
           </View>
+          <Text style={{ fontSize: 11, color: "#8a7a6a", marginTop: 6 }}>Принято заданий: {takenCount || 0}</Text>
+        </View>
 
-          {exhausted ? (
-            <View>
-              <Text style={{ fontSize: 14, color: INK, textAlign: "center", marginBottom: 16, lineHeight: 20 }}>
-                У меня пока больше нет новых предложений для тебя. Заходи позже.
-              </Text>
-              <PrimaryButton label="Понял" color={GREEN} onPress={onClose} />
-            </View>
-          ) : (
-            <>
-              <Text style={{ fontSize: 14, color: INK, textAlign: "center", marginBottom: 16, lineHeight: 20 }}>{offer.text}</Text>
-
-              {!showCustom ? (
+        {chainOffer ? (
+          <View style={{ borderWidth: 1.5, borderColor: INK, borderRadius: 14, padding: 16, marginBottom: 18, backgroundColor: CARD }}>
+            <Text style={{ fontSize: 14, color: INK, textAlign: "center", marginBottom: 14, lineHeight: 20 }}>{chainOffer.text}</Text>
+            {!showCustom ? (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <PrimaryButton label="Да" color={GREEN} onPress={() => onTakeChain(chainOffer)} style={{ flex: 1 }} />
+                <PrimaryButton label="Нет" color="#fff" textColor={INK} onPress={() => setShowCustom(true)} style={{ flex: 1 }} />
+              </View>
+            ) : (
+              <View>
+                <Text style={{ fontSize: 12, color: "#8a7a6a", textAlign: "center", marginBottom: 10 }}>А что-то своё хочешь? Напиши — я подумаю.</Text>
+                <TextInput
+                  value={customText}
+                  onChangeText={setCustomText}
+                  placeholder="Например: заказать пиццу"
+                  placeholderTextColor="#a0907e"
+                  style={{ borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, marginBottom: 10 }}
+                />
                 <View style={{ flexDirection: "row", gap: 8 }}>
-                  <PrimaryButton label="Да" color={GREEN} onPress={onYes} style={{ flex: 1 }} />
-                  <PrimaryButton label="Нет" color="#fff" textColor={INK} onPress={() => setShowCustom(true)} style={{ flex: 1 }} />
+                  <PrimaryButton label="Ничего" color="#fff" textColor={INK} onPress={() => setShowCustom(false)} style={{ flex: 1 }} />
+                  <PrimaryButton label="Добавить" color={GREEN} onPress={() => customText.trim() && onCustom(customText.trim())} style={{ flex: 1 }} />
                 </View>
-              ) : (
-                <View>
-                  <Text style={{ fontSize: 12, color: "#8a7a6a", textAlign: "center", marginBottom: 10 }}>А что-то своё хочешь? Напиши — я подумаю.</Text>
-                  <TextInput
-                    value={customText}
-                    onChangeText={setCustomText}
-                    placeholder="Например: заказать пиццу"
-                    placeholderTextColor="#a0907e"
-                    style={{ borderWidth: 1.5, borderColor: INK, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 13, marginBottom: 10 }}
-                  />
-                  <View style={{ flexDirection: "row", gap: 8 }}>
-                    <PrimaryButton label="Ничего" color="#fff" textColor={INK} onPress={onClose} style={{ flex: 1 }} />
-                    <PrimaryButton label="Добавить" color={GREEN} onPress={() => customText.trim() && onCustom(customText.trim())} style={{ flex: 1 }} />
-                  </View>
+              </View>
+            )}
+          </View>
+        ) : (
+          !randomUnlocked && (
+            <Text style={{ fontSize: 13, color: "#8a7a6a", textAlign: "center", marginBottom: 18 }}>Сюжетные задания закончились. Бери случайные ниже.</Text>
+          )
+        )}
+
+        {randomUnlocked ? (
+          <View style={{ borderWidth: 1.5, borderColor: INK, borderStyle: "dashed", borderRadius: 14, padding: 16, alignItems: "center" }}>
+            <Text style={{ fontSize: 11, color: "#8a7a6a", marginBottom: 10 }}>🎲 Рандомайзер открыт</Text>
+            {rollIsMine ? (
+              <>
+                <Text style={{ fontSize: 15, fontWeight: "bold", color: INK, textAlign: "center", marginBottom: 14 }}>{guideRoll.title}</Text>
+                <View style={{ flexDirection: "row", gap: 8, width: "100%" }}>
+                  <PrimaryButton label="🎲 Ещё раз" color="#fff" textColor={INK} onPress={() => onRollRandom(guideKey)} style={{ flex: 1 }} />
+                  <PrimaryButton label="Взять задачу" color={GREEN} onPress={onTakeRandom} style={{ flex: 1 }} />
                 </View>
-              )}
-            </>
-          )}
-        </Pressable>
-      </Pressable>
+              </>
+            ) : (
+              <PrimaryButton label="🎲 Крутить" color={meta.color} textColor={INK} onPress={() => onRollRandom(guideKey)} style={{ width: "100%" }} />
+            )}
+          </View>
+        ) : (
+          <Text style={{ fontSize: 11, color: "#a0907e", textAlign: "center", marginTop: 6 }}>
+            Рандомайзер откроется после {GUIDE_UNLOCK_RANDOM_AT} принятых заданий (сейчас {takenCount || 0}).
+          </Text>
+        )}
+      </ScrollView>
     </Overlay>
   );
 }
@@ -1559,6 +1749,41 @@ function TitleUnlockDialog({ title, onClose }) {
   );
 }
 
+function ThemePickerOverlay({ current, onSelect, onClose }) {
+  return (
+    <Overlay zIndex={80}>
+      <OverlayHeader onBack={onClose} title="🎨 ТЕМА" onClose={onClose} />
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 8 }}>
+        {Object.keys(THEMES).map((key) => {
+          const t = THEMES[key];
+          const active = key === current;
+          return (
+            <Pressable
+              key={key}
+              onPress={() => onSelect(key)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 12,
+                backgroundColor: t.card,
+                borderWidth: active ? 3 : 1.5,
+                borderColor: t.ink,
+                borderRadius: 12,
+                padding: 14,
+                marginBottom: 8,
+              }}
+            >
+              <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: t.bar, borderWidth: 2, borderColor: t.ink }} />
+              <Text style={{ fontSize: 14, fontWeight: "bold", color: t.ink, flex: 1 }}>{t.label}</Text>
+              {active && <Text style={{ fontSize: 16, color: t.ink }}>✓</Text>}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </Overlay>
+  );
+}
+
 function TitlesOverlay({ guideProgress, onClose }) {
   return (
     <Overlay zIndex={56}>
@@ -1566,10 +1791,11 @@ function TitlesOverlay({ guideProgress, onClose }) {
       <ScrollView contentContainerStyle={{ padding: 16 }}>
         {Object.keys(GUIDE_TITLES).map((guideKey) => {
           const progress = guideProgress[guideKey] || 0;
+          const meta = GUIDE_META[guideKey] || { name: guideKey, emoji: "🧑" };
           return (
             <View key={guideKey} style={{ marginBottom: 18 }}>
               <Text style={{ fontSize: 12, color: "#8a7a6a", marginBottom: 8 }}>
-                🧹 МИСТЕР ПРОПЕР · выполнено дел: {progress}
+                {meta.emoji} {meta.name} · выполнено дел: {progress}
               </Text>
               {GUIDE_TITLE_TIERS.map((tier) => {
                 const t = GUIDE_TITLES[guideKey][tier];
@@ -1680,15 +1906,23 @@ export default function App() {
   const [mapSize, setMapSize] = useState({ width: 0, height: 0 });
   const [loaded, setLoaded] = useState(false);
   const [showFieldMenu, setShowFieldMenu] = useState(false);
-  const [guideOffer, setGuideOffer] = useState(null); // { key, offer }
-  const [guideProgress, setGuideProgress] = useState({ proper: 0 });
-  const [guideUsedOffers, setGuideUsedOffers] = useState([]);
+  const [guideProgress, setGuideProgress] = useState({ proper: 0, joper: 0 });
+  const [guideUsedOffers, setGuideUsedOffers] = useState([]); // взятые offer.id из цепочки
+  const [guideTakenCount, setGuideTakenCount] = useState({ proper: 0, joper: 0 }); // всего принято (цепочка+рандом)
+  const [guideUsedRandom, setGuideUsedRandom] = useState({ proper: [], joper: [] }); // взятые названия из рандом-пула
+  const [showGuidesList, setShowGuidesList] = useState(false);
+  const [activeGuideKey, setActiveGuideKey] = useState(null); // какой гид открыт
+  const [guideRoll, setGuideRoll] = useState(null); // { guideKey, title } — текущее выпавшее случайное задание
   const [placementConfirm, setPlacementConfirm] = useState(null);
   const [titleUnlock, setTitleUnlock] = useState(null); // { name, emoji, desc }
   const [showTitles, setShowTitles] = useState(false);
-  const [pendingPlacement, setPendingPlacement] = useState(null); // { title, due, notes, source }
+  const [pendingPlacement, setPendingPlacement] = useState(null); // { title, due, notes, source, repeat }
   const [showOthers, setShowOthers] = useState(false);
   const [sharedPool, setSharedPool] = useState([]);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [themeName, setThemeName] = useState("light");
+  const [showThemePicker, setShowThemePicker] = useState(false);
+  applyTheme(themeName);
 
   // Загрузка данных при старте
   useEffect(() => {
@@ -1702,6 +1936,9 @@ export default function App() {
           if (data.historyLog) setHistoryLog(data.historyLog);
           if (data.guideProgress) setGuideProgress(data.guideProgress);
           if (data.guideUsedOffers) setGuideUsedOffers(data.guideUsedOffers);
+          if (data.guideTakenCount) setGuideTakenCount(data.guideTakenCount);
+          if (data.guideUsedRandom) setGuideUsedRandom(data.guideUsedRandom);
+          if (data.themeName) setThemeName(data.themeName);
         }
       } catch (e) {
         // данных нет или битые — стартуем с initialScreens
@@ -1716,12 +1953,135 @@ export default function App() {
     if (!loaded) return;
     AsyncStorage.setItem(
       "questmap_v1",
-      JSON.stringify({ screens, topLevelOrder, historyLog, guideProgress, guideUsedOffers })
+      JSON.stringify({ screens, topLevelOrder, historyLog, guideProgress, guideUsedOffers, guideTakenCount, guideUsedRandom, themeName })
     ).catch(() => {});
-  }, [screens, topLevelOrder, historyLog, guideProgress, guideUsedOffers, loaded]);
+  }, [screens, topLevelOrder, historyLog, guideProgress, guideUsedOffers, guideTakenCount, guideUsedRandom, themeName, loaded]);
 
   const screen = screens[currentId];
   const activeMarker = (screen.markers || []).find((m) => m.id === activeTaskId) || null;
+
+  const backStateRef = useRef();
+  backStateRef.current = {
+    placementConfirm,
+    titleUnlock,
+    pendingDeleteField,
+    pendingDelete,
+    pendingPlacement,
+    guideRoll,
+    activeGuideKey,
+    showGuidesList,
+    showThemePicker,
+    showFieldMenu,
+    showTitles,
+    journalDetail,
+    showJournal,
+    showHistory,
+    showOthers,
+    showAddScreen,
+    showAddMarker,
+    activeTaskId,
+    editMode,
+    currentId,
+    screen,
+  };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      const s = backStateRef.current;
+      if (s.placementConfirm) {
+        setPlacementConfirm(null);
+        return true;
+      }
+      if (s.titleUnlock) {
+        setTitleUnlock(null);
+        return true;
+      }
+      if (s.pendingDeleteField) {
+        setPendingDeleteField(null);
+        return true;
+      }
+      if (s.pendingDelete) {
+        setPendingDelete(null);
+        return true;
+      }
+      if (s.pendingPlacement) {
+        const { source, guideOfferId, guideRandomTitle } = s.pendingPlacement;
+        if (source && guideOfferId) {
+          setGuideUsedOffers((prev) => prev.filter((id) => id !== guideOfferId));
+          setGuideTakenCount((prev) => ({ ...prev, [source]: Math.max(0, (prev[source] || 0) - 1) }));
+        } else if (source && guideRandomTitle) {
+          setGuideUsedRandom((prev) => ({ ...prev, [source]: (prev[source] || []).filter((t) => t !== guideRandomTitle) }));
+          setGuideTakenCount((prev) => ({ ...prev, [source]: Math.max(0, (prev[source] || 0) - 1) }));
+        }
+        setPendingPlacement(null);
+        return true;
+      }
+      if (s.guideRoll) {
+        setGuideRoll(null);
+        return true;
+      }
+      if (s.activeGuideKey) {
+        setActiveGuideKey(null);
+        return true;
+      }
+      if (s.showGuidesList) {
+        setShowGuidesList(false);
+        return true;
+      }
+      if (s.showThemePicker) {
+        setShowThemePicker(false);
+        return true;
+      }
+      if (s.showFieldMenu) {
+        setShowFieldMenu(false);
+        return true;
+      }
+      if (s.showTitles) {
+        setShowTitles(false);
+        return true;
+      }
+      if (s.journalDetail) {
+        setJournalDetail(null);
+        return true;
+      }
+      if (s.showJournal) {
+        setShowJournal(false);
+        return true;
+      }
+      if (s.showHistory) {
+        setShowHistory(false);
+        return true;
+      }
+      if (s.showOthers) {
+        setShowOthers(false);
+        return true;
+      }
+      if (s.showAddScreen) {
+        setShowAddScreen(false);
+        return true;
+      }
+      if (s.showAddMarker) {
+        setShowAddMarker(false);
+        return true;
+      }
+      if (s.activeTaskId) {
+        setActiveTaskId(null);
+        return true;
+      }
+      if (s.editMode) {
+        setEditMode(false);
+        return true;
+      }
+      if (s.currentId !== "main") {
+        setCurrentId(s.screen.parentId || "main");
+        return true;
+      }
+      setShowExitConfirm(true);
+      return true;
+    };
+    const sub = BackHandler.addEventListener("hardwareBackPress", onBackPress);
+    return () => sub.remove();
+  }, []);
 
   const updateScreen = (id, fn) => setScreens((prev) => ({ ...prev, [id]: fn(prev[id]) }));
 
@@ -1741,10 +2101,6 @@ export default function App() {
   const archiveScreen = (scr) => (scr.markers || []).forEach((mk) => archiveTasks(scr, mk));
 
   const handleOpen = (marker) => {
-    if (marker.isGuide) {
-      rollGuideOffer(marker.guideKey || "proper");
-      return;
-    }
     if (marker.linkTo) {
       setCurrentId(marker.linkTo);
       setEditMode(false);
@@ -1783,51 +2139,136 @@ export default function App() {
       ),
     }));
   };
-  const addTask = (markerId, title, due) => {
+
+  // Повторяющееся дело: тап по "+" прибавляет 1 к счётчику; когда
+  // счётчик доходит до цели — дело считается выполненным (done: true),
+  // это по-прежнему одно дело, не несколько.
+  const incrementRepeat = (markerId, taskId) => {
+    const marker = screen.markers.find((m) => m.id === markerId);
+    const task = marker && marker.tasks.find((t) => t.id === taskId);
+    if (!task || !task.repeat || task.done) return;
+    const nextCount = Math.min(task.repeat.target, task.repeat.count + 1);
+    const willFinish = nextCount >= task.repeat.target;
+    const shouldAward = !!(willFinish && !task.titleAwarded && task.source && GUIDE_TITLES[task.source]);
+    if (shouldAward) bumpGuideProgress(task.source);
     updateScreen(currentId, (s) => ({
       ...s,
-      markers: s.markers.map((m) => (m.id === markerId ? { ...m, tasks: [...(m.tasks || []), { id: nextId(), title, due, done: false, notes: [], createdAt: Date.now() }] } : m)),
+      markers: s.markers.map((m) =>
+        m.id === markerId
+          ? {
+              ...m,
+              tasks: m.tasks.map((t) =>
+                t.id === taskId
+                  ? { ...t, repeat: { ...t.repeat, count: nextCount }, done: willFinish, titleAwarded: shouldAward ? true : t.titleAwarded }
+                  : t
+              ),
+            }
+          : m
+      ),
     }));
   };
-  const addTaskGlobal = (screenId, markerId, title, due, notes, source) => {
+
+  const addTask = (markerId, title, due, repeat) => {
+    updateScreen(currentId, (s) => ({
+      ...s,
+      markers: s.markers.map((m) =>
+        m.id === markerId ? { ...m, tasks: [...(m.tasks || []), { id: nextId(), title, due, done: false, notes: [], createdAt: Date.now(), repeat: repeat || null }] } : m
+      ),
+    }));
+  };
+  const addTaskGlobal = (screenId, markerId, title, due, notes, source, repeat) => {
     setScreens((prev) => ({
       ...prev,
       [screenId]: {
         ...prev[screenId],
         markers: prev[screenId].markers.map((m) =>
           m.id === markerId
-            ? { ...m, tasks: [...(m.tasks || []), { id: nextId(), title, due: due || null, done: false, notes: (notes || []).map((t) => ({ text: t, done: false })), createdAt: Date.now(), source: source || undefined }] }
+            ? {
+                ...m,
+                tasks: [
+                  ...(m.tasks || []),
+                  {
+                    id: nextId(),
+                    title,
+                    due: due || null,
+                    done: false,
+                    notes: (notes || []).map((t) => ({ text: t, done: false })),
+                    createdAt: Date.now(),
+                    source: source || undefined,
+                    repeat: repeat || null,
+                  },
+                ],
+              }
             : m
         ),
       },
     }));
   };
-  const rollGuideOffer = (guideKey) => {
-    const pool = guideKey === "proper" ? PROPER_OFFERS : [];
-    const fresh = pool.filter((o) => !guideUsedOffers.includes(o.id));
-    if (fresh.length === 0) {
-      setGuideOffer({ key: guideKey, offer: null, exhausted: true });
-      return;
-    }
-    const offer = fresh[Math.floor(Math.random() * fresh.length)];
-    setGuideOffer({ key: guideKey, offer });
+
+  // ---- Гиды: сюжетная цепочка -> рандомайзер после 10 принятых заданий ----
+  const openGuide = (guideKey) => {
+    setActiveGuideKey(guideKey);
+    setGuideRoll(null);
+    setShowGuidesList(false);
   };
-  const handleGuideYes = () => {
-    if (!guideOffer || !guideOffer.offer) return;
-    setGuideUsedOffers((prev) => [...prev, guideOffer.offer.id]);
-    setPendingPlacement({ title: guideOffer.offer.taskTitle, due: null, notes: guideOffer.offer.starterNotes || [], source: guideOffer.key });
-    setGuideOffer(null);
+  const nextChainOfferFor = (guideKey) => {
+    const chain = GUIDE_CHAINS[guideKey] || [];
+    return chain.find((o) => !guideUsedOffers.includes(o.id)) || null;
   };
-  const handleGuideCustom = (text) => {
-    setPendingPlacement({ title: text, due: null, notes: [], source: undefined });
-    setGuideOffer(null);
+  const takeChainOffer = (guideKey, offer) => {
+    setGuideUsedOffers((prev) => [...prev, offer.id]);
+    setGuideTakenCount((prev) => ({ ...prev, [guideKey]: (prev[guideKey] || 0) + 1 }));
+    setPendingPlacement({ title: offer.taskTitle, due: null, notes: offer.starterNotes || [], source: guideKey, repeat: null, guideOfferId: offer.id });
+    setActiveGuideKey(null);
   };
+  const takeCustomInstead = (guideKey, text) => {
+    setPendingPlacement({ title: text, due: null, notes: [], source: undefined, repeat: null });
+    setActiveGuideKey(null);
+  };
+  const rollGuideRandom = (guideKey) => {
+    const pool = GUIDE_RANDOM_POOLS[guideKey] || [];
+    const used = guideUsedRandom[guideKey] || [];
+    let fresh = pool.filter((t) => !used.includes(t));
+    if (fresh.length === 0) fresh = pool; // пул исчерпан — начинаем крутить заново
+    if (fresh.length === 0) return;
+    const title = fresh[Math.floor(Math.random() * fresh.length)];
+    setGuideRoll({ guideKey, title });
+  };
+  const takeGuideRandom = () => {
+    if (!guideRoll) return;
+    const { guideKey, title } = guideRoll;
+    setGuideUsedRandom((prev) => ({ ...prev, [guideKey]: [...(prev[guideKey] || []), title] }));
+    setGuideTakenCount((prev) => ({ ...prev, [guideKey]: (prev[guideKey] || 0) + 1 }));
+    // Рутинные дела из рандомайзера — повторяющиеся по умолчанию (3-7 раз),
+    // чтобы закрепить привычку, а не отметить один раз и забыть.
+    const target = 3 + Math.floor(Math.random() * 5);
+    setPendingPlacement({ title, due: null, notes: [], source: guideKey, repeat: { count: 0, target }, guideRandomTitle: title });
+    setGuideRoll(null);
+    setActiveGuideKey(null);
+  };
+
   const placeTask = (screenId, markerId) => {
     if (!pendingPlacement) return;
-    addTaskGlobal(screenId, markerId, pendingPlacement.title, pendingPlacement.due, pendingPlacement.notes, pendingPlacement.source);
+    addTaskGlobal(screenId, markerId, pendingPlacement.title, pendingPlacement.due, pendingPlacement.notes, pendingPlacement.source, pendingPlacement.repeat);
     const scr = screens[screenId];
     const mk = scr && scr.markers.find((m) => m.id === markerId);
     setPlacementConfirm({ title: pendingPlacement.title, markerName: mk ? mk.name : "" });
+    setPendingPlacement(null);
+  };
+
+  // Если пользователь закрыл выбор метки, ничего не выбрав — задание не
+  // должно "сгорать": возвращаем его гиду (снимаем как взятое).
+  const cancelPendingPlacement = () => {
+    if (pendingPlacement) {
+      const { source, guideOfferId, guideRandomTitle } = pendingPlacement;
+      if (source && guideOfferId) {
+        setGuideUsedOffers((prev) => prev.filter((id) => id !== guideOfferId));
+        setGuideTakenCount((prev) => ({ ...prev, [source]: Math.max(0, (prev[source] || 0) - 1) }));
+      } else if (source && guideRandomTitle) {
+        setGuideUsedRandom((prev) => ({ ...prev, [source]: (prev[source] || []).filter((t) => t !== guideRandomTitle) }));
+        setGuideTakenCount((prev) => ({ ...prev, [source]: Math.max(0, (prev[source] || 0) - 1) }));
+      }
+    }
     setPendingPlacement(null);
   };
 
@@ -2098,7 +2539,13 @@ export default function App() {
         <Text style={{ fontSize: 16, fontWeight: "bold", color: INK, textAlign: "center", flex: 1 }} numberOfLines={1}>
           {screen.name}
         </Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, minWidth: 62, justifyContent: "flex-end" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 9, minWidth: 100, justifyContent: "flex-end" }}>
+          <Pressable onPress={() => setShowThemePicker(true)}>
+            <Text style={{ fontSize: 17 }}>🎨</Text>
+          </Pressable>
+          <Pressable onPress={() => setShowGuidesList((v) => !v)}>
+            <Text style={{ fontSize: 17 }}>🧭</Text>
+          </Pressable>
           <Pressable onPress={() => setShowTitles(true)}>
             <Text style={{ fontSize: 17 }}>🏆</Text>
           </Pressable>
@@ -2206,7 +2653,7 @@ export default function App() {
         )}
 
         {activeMarker && (
-          <TaskScreen marker={activeMarker} onClose={() => setActiveTaskId(null)} onToggle={toggleTask} onAdd={addTask} onDelete={deleteTask} onAddNote={addNoteLocal} onRemoveNote={removeNoteLocal} onToggleNote={toggleNoteLocal} onShare={shareTaskToPool} />
+          <TaskScreen marker={activeMarker} onClose={() => setActiveTaskId(null)} onToggle={toggleTask} onAdd={addTask} onDelete={deleteTask} onAddNote={addNoteLocal} onRemoveNote={removeNoteLocal} onToggleNote={toggleNoteLocal} onShare={shareTaskToPool} onIncrementRepeat={incrementRepeat} />
         )}
         {showAddMarker && (
           <NewPinForm title="Новая метка" confirmLabel="Добавить метку" showPlaceHints={currentId !== "home"} onClose={() => setShowAddMarker(false)} onCreate={createMarker} />
@@ -2231,6 +2678,16 @@ export default function App() {
         )}
         {showHistory && <HistoryList entries={historyEntries} onClose={() => setShowHistory(false)} onDeleteEntry={hardDeleteEntry} />}
         {showTitles && <TitlesOverlay guideProgress={guideProgress} onClose={() => setShowTitles(false)} />}
+        {showThemePicker && (
+          <ThemePickerOverlay
+            current={themeName}
+            onSelect={(key) => {
+              setThemeName(key);
+              setShowThemePicker(false);
+            }}
+            onClose={() => setShowThemePicker(false)}
+          />
+        )}
         {showOthers && (
           <OthersList
             pool={sharedPool}
@@ -2242,10 +2699,31 @@ export default function App() {
             }}
           />
         )}
-        {guideOffer && <GuideOverlay guideOffer={guideOffer} onYes={handleGuideYes} onCustom={handleGuideCustom} onClose={() => setGuideOffer(null)} />}
+        {showGuidesList && <GuidesListOverlay onSelect={(key) => openGuide(key)} onClose={() => setShowGuidesList(false)} />}
+        {activeGuideKey && (
+          <GuideTasksOverlay
+            guideKey={activeGuideKey}
+            chainOffer={nextChainOfferFor(activeGuideKey)}
+            takenCount={guideTakenCount[activeGuideKey]}
+            guideRoll={guideRoll}
+            onTakeChain={(offer) => takeChainOffer(activeGuideKey, offer)}
+            onCustom={(text) => takeCustomInstead(activeGuideKey, text)}
+            onRollRandom={(key) => rollGuideRandom(key)}
+            onTakeRandom={takeGuideRandom}
+            onBack={() => {
+              setActiveGuideKey(null);
+              setGuideRoll(null);
+              setShowGuidesList(true);
+            }}
+            onClose={() => {
+              setActiveGuideKey(null);
+              setGuideRoll(null);
+            }}
+          />
+        )}
         {titleUnlock && <TitleUnlockDialog title={titleUnlock} onClose={() => setTitleUnlock(null)} />}
         {pendingPlacement && (
-          <MarkerPickerModal screens={screens} onClose={() => setPendingPlacement(null)} onPick={(screenId, markerId) => placeTask(screenId, markerId)} />
+          <MarkerPickerModal screens={screens} onClose={cancelPendingPlacement} onPick={(screenId, markerId) => placeTask(screenId, markerId)} />
         )}
         {placementConfirm && (
           <InfoDialog message={`«${placementConfirm.title}» добавлено в «${placementConfirm.markerName}».`} onClose={() => setPlacementConfirm(null)} />
@@ -2271,76 +2749,153 @@ export default function App() {
             }}
           />
         )}
+        {showExitConfirm && (
+          <ConfirmDialog
+            message="Выйти из приложения?"
+            confirmLabel="Выйти"
+            confirmColor={BLUE}
+            onCancel={() => setShowExitConfirm(false)}
+            onConfirm={() => {
+              setShowExitConfirm(false);
+              BackHandler.exitApp();
+            }}
+          />
+        )}
       </View>
 
-      <View style={{ borderTopWidth: 1.5, borderColor: INK, backgroundColor: BAR_BG, padding: 10 }}>
+      <View
+        style={{
+          backgroundColor: BAR_BG,
+          borderTopLeftRadius: 22,
+          borderTopRightRadius: 22,
+          paddingTop: 10,
+          paddingBottom: 12,
+          paddingHorizontal: 10,
+          shadowColor: INK,
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.15,
+          shadowRadius: 6,
+          elevation: 14,
+        }}
+      >
         {!editMode ? (
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, justifyContent: "center", alignItems: "center", rowGap: 6 }}>
-            <Chip
-              label="📖 Журнал"
-              onPress={() => {
-                setShowHistory(false);
-                setShowOthers(false);
-                setShowJournal(true);
-              }}
-              style={{ borderRadius: 18, backgroundColor: "#fff" }}
-            />
-            <Chip
-              label="🕓 История"
-              onPress={() => {
-                setShowJournal(false);
-                setJournalDetail(null);
-                setShowOthers(false);
-                setShowHistory(true);
-              }}
-              style={{ borderRadius: 18, backgroundColor: "#fff" }}
-            />
-            <Chip
-              label="🌐 Другие"
-              onPress={() => {
-                setShowJournal(false);
-                setShowHistory(false);
-                setShowOthers(true);
-                loadSharedPool();
-              }}
-              style={{ borderRadius: 18, backgroundColor: "#fff" }}
-            />
-            <Chip
-              label="✎ Редактировать"
-              onPress={() => {
-                setActiveTaskId(null);
-                setShowJournal(false);
-                setJournalDetail(null);
-                setShowHistory(false);
-                setShowOthers(false);
-                setEditMode(true);
-              }}
-              style={{ borderRadius: 18, backgroundColor: "#fff" }}
-            />
-            <Pressable onPress={() => setShowAddMarker(true)} style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "#fff", borderWidth: 2, borderColor: INK, alignItems: "center", justifyContent: "center" }}>
-              <Text style={{ fontSize: 16 }}>＋</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={{ flex: 1, flexDirection: "row", justifyContent: "space-between" }}>
+              {[
+                {
+                  icon: "📖",
+                  label: "Журнал",
+                  onPress: () => {
+                    setShowHistory(false);
+                    setShowOthers(false);
+                    setShowJournal(true);
+                  },
+                },
+                {
+                  icon: "🕓",
+                  label: "История",
+                  onPress: () => {
+                    setShowJournal(false);
+                    setJournalDetail(null);
+                    setShowOthers(false);
+                    setShowHistory(true);
+                  },
+                },
+                {
+                  icon: "🌐",
+                  label: "Другие",
+                  onPress: () => {
+                    setShowJournal(false);
+                    setShowHistory(false);
+                    setShowOthers(true);
+                    loadSharedPool();
+                  },
+                },
+                {
+                  icon: "✎",
+                  label: "Правка",
+                  onPress: () => {
+                    setActiveTaskId(null);
+                    setShowJournal(false);
+                    setJournalDetail(null);
+                    setShowHistory(false);
+                    setShowOthers(false);
+                    setEditMode(true);
+                  },
+                },
+              ].map((item) => (
+                <Pressable
+                  key={item.label}
+                  onPress={item.onPress}
+                  style={({ pressed }) => [
+                    { flex: 1, alignItems: "center", paddingVertical: 6, borderRadius: 14, backgroundColor: pressed ? "rgba(59,47,47,0.08)" : "transparent" },
+                  ]}
+                >
+                  <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+                  <Text style={{ fontSize: 9.5, fontWeight: "bold", color: INK, marginTop: 2 }}>{item.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Pressable
+              onPress={() => setShowAddMarker(true)}
+              style={({ pressed }) => [
+                {
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  backgroundColor: GREEN,
+                  borderWidth: 2,
+                  borderColor: INK,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginTop: -18,
+                  shadowColor: INK,
+                  shadowOffset: { width: 2, height: 3 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 0,
+                  elevation: 8,
+                  transform: [{ scale: pressed ? 0.92 : 1 }],
+                },
+              ]}
+            >
+              <Text style={{ fontSize: 22, color: "#fff", fontWeight: "bold" }}>＋</Text>
             </Pressable>
           </View>
         ) : (
-          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 4 }}>
-            <Pressable onPress={() => setShowAddMarker(true)} style={{ flex: 1, alignItems: "center", paddingVertical: 6, borderRadius: 12 }}>
-              <Text style={{ fontSize: 15 }}>＋</Text>
-              <Text style={{ fontSize: 9.5, fontWeight: "bold", color: INK }}>Метка</Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 6 }}>
+            <Pressable
+              onPress={() => setShowAddMarker(true)}
+              style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1.5, borderColor: INK }}
+            >
+              <Text style={{ fontSize: 16 }}>＋</Text>
+              <Text style={{ fontSize: 9.5, fontWeight: "bold", color: INK, marginTop: 2 }}>Метка</Text>
             </Pressable>
-            <Pressable onPress={() => setShowAddScreen(true)} style={{ flex: 1, alignItems: "center", paddingVertical: 6, borderRadius: 12 }}>
-              <Text style={{ fontSize: 15 }}>▤</Text>
-              <Text style={{ fontSize: 9.5, fontWeight: "bold", color: INK }}>Поле</Text>
+            <Pressable
+              onPress={() => setShowAddScreen(true)}
+              style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 14, backgroundColor: "#fff", borderWidth: 1.5, borderColor: INK }}
+            >
+              <Text style={{ fontSize: 16 }}>▤</Text>
+              <Text style={{ fontSize: 9.5, fontWeight: "bold", color: INK, marginTop: 2 }}>Поле</Text>
             </Pressable>
             <Pressable
               onPress={() => setEditAction((a) => (a === "delete" ? "none" : "delete"))}
-              style={{ flex: 1, alignItems: "center", paddingVertical: 6, borderRadius: 12, backgroundColor: editAction === "delete" ? INK : "transparent" }}
+              style={{
+                flex: 1,
+                alignItems: "center",
+                paddingVertical: 8,
+                borderRadius: 14,
+                backgroundColor: editAction === "delete" ? INK : "#fff",
+                borderWidth: 1.5,
+                borderColor: INK,
+              }}
             >
-              <Text style={{ fontSize: 15 }}>🗑</Text>
-              <Text style={{ fontSize: 9.5, fontWeight: "bold", color: editAction === "delete" ? "#fff" : INK }}>Удалить</Text>
+              <Text style={{ fontSize: 16 }}>🗑</Text>
+              <Text style={{ fontSize: 9.5, fontWeight: "bold", color: editAction === "delete" ? "#fff" : INK, marginTop: 2 }}>Удалить</Text>
             </Pressable>
-            <Pressable onPress={() => setEditMode(false)} style={{ flex: 1, alignItems: "center", paddingVertical: 6, borderRadius: 12, backgroundColor: GREEN }}>
-              <Text style={{ fontSize: 15 }}>✓</Text>
-              <Text style={{ fontSize: 9.5, fontWeight: "bold", color: "#fff" }}>Готово</Text>
+            <Pressable onPress={() => setEditMode(false)} style={{ flex: 1, alignItems: "center", paddingVertical: 8, borderRadius: 14, backgroundColor: GREEN, borderWidth: 1.5, borderColor: INK }}>
+              <Text style={{ fontSize: 16 }}>✓</Text>
+              <Text style={{ fontSize: 9.5, fontWeight: "bold", color: "#fff", marginTop: 2 }}>Готово</Text>
             </Pressable>
           </View>
         )}
